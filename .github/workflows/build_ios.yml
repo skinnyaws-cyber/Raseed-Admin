@@ -1,4 +1,4 @@
-name: Build iOS IPA (TrollStore)
+name: Build iOS IPA (TrollStore Debug)
 
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.0' # تأكد من النسخة أو اتركها 3.19.0 فهي مستقرة
+          flutter-version: '3.19.0'
           channel: 'stable'
 
       - name: Install Dependencies
@@ -31,12 +31,25 @@ jobs:
       - name: Pod Install
         run: |
           cd ios
-          pod install
+          # إزالة أي إعدادات سابقة قد تسبب مشاكل
+          rm -rf Pods
+          rm -rf Podfile.lock
+          pod install --repo-update
           cd ..
 
-      - name: Build iOS App (No Codesign)
-        # بناء نسخة Release بدون توقيع ليقبلها TrollStore
-        run: flutter build ios --release --no-codesign
+      - name: Disable Signing Forcefully
+        run: |
+          cd ios
+          # هذا الأمر يعدل ملف المشروع ليعطل التوقيع التلقائي ويحذف أي فريق تطوير مطلوب
+          sed -i '' 's/CODE_SIGNING_ALLOWED = YES/CODE_SIGNING_ALLOWED = NO/g' Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/CODE_SIGNING_REQUIRED = YES/CODE_SIGNING_REQUIRED = NO/g' Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/CODE_SIGN_IDENTITY = "iPhone Developer"/CODE_SIGN_IDENTITY = ""/g' Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/ProvisioningStyle = Automatic/ProvisioningStyle = Manual/g' Runner.xcodeproj/project.pbxproj
+          cd ..
+
+      - name: Build iOS App (Verbose & No Codesign)
+        # أضفنا --verbose لرؤية كل التفاصيل في حال الفشل
+        run: flutter build ios --release --no-codesign --verbose
 
       - name: Create IPA for TrollStore
         run: |
