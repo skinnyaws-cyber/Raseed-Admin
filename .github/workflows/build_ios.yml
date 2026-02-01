@@ -1,67 +1,62 @@
-name: Build iOS IPA (No-Sign / TrollStore)
+name: Build iOS IPA (Final Fix)
 
 on:
-  # هذا الخيار يسمح لك بتشغيل البناء يدوياً بضغطة زر
-  workflow_dispatch:
-  # أو يعمل تلقائياً عند رفع تعديل جديد
   push:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
-  build_ios_unsigned:
-    name: Build Unsigned IPA
+  build_ios:
+    name: Build Flutter iOS
     runs-on: macos-latest
 
     steps:
-      # 1. جلب الكود من المستودع
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v3
 
-      # 2. تثبيت Flutter
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.19.0'
           channel: 'stable'
-          architecture: x64
 
-      # 3. جلب المكتبات
       - name: Install Dependencies
         run: flutter pub get
 
-      # 4. تثبيت مكتبات iOS (Pods)
-      - name: Install CocoaPods
+      - name: Fix Project Settings (Magic Step) 🪄
         run: |
           cd ios
+          # 1. إجبار التوقيع اليدوي بدلاً من التلقائي
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' Runner.xcodeproj/project.pbxproj
+          
+          # 2. إزالة طلب هوية مطور آيفون
+          sed -i '' 's/"CODE_SIGN_IDENTITY\[sdk=iphoneos\*\]" = "iPhone Developer";/"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";/g' Runner.xcodeproj/project.pbxproj
+          
+          # 3. تحديث إصدار iOS إلى 15.0 في إعدادات المشروع
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' Runner.xcodeproj/project.pbxproj
+          
+          # 4. تنظيف وتثبيت الـ Pods
+          rm -rf Pods
+          rm -rf Podfile.lock
           pod install --repo-update
           cd ..
 
-      # 5. بناء التطبيق بدون توقيع (هنا السر)
       - name: Build iOS App (No Codesign)
-        run: |
-          flutter build ios --release --no-codesign
+        run: flutter build ios --release --no-codesign --verbose
 
-      # 6. تحويل ملف .app إلى .ipa يدوياً (خدعة TrollStore)
-      - name: Package into IPA
+      - name: Create IPA for TrollStore
         run: |
-          # الدخول لمجلد المخرجات
-          cd build/ios/iphoneos
+          mkdir -p Payload
+          mv build/ios/iphoneos/Runner.app Payload/
+          zip -r RaseedAdmin.ipa Payload
           
-          # إنشاء مجلد Payload (شرط أساسي لملفات IPA)
-          mkdir Payload
-          
-          # نقل التطبيق داخل المجلد
-          mv Runner.app Payload/
-          
-          # ضغط المجلد ليصبح ملف IPA
-          zip -r Raseed-NoSign.ipa Payload
-          
-          # نقل الملف النهائي للمجلد الرئيسي لرفعه
-          mv Raseed-NoSign.ipa ../../../
-
-      # 7. رفع الملف الناتج لك لتحميله
-      - name: Upload IPA Artifact
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Raseed-TrollStore-IPA
-          path: Raseed-NoSign.ipa
-          retention-days: 5
+          name: RaseedAdmin-IPA
+          path: RaseedAdmin.ipa
