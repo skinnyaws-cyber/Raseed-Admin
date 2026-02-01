@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:raseed_admin/screens/login_screen.dart'; // سننشئها في الخطوة التالية
+import 'package:glassmorphism/glassmorphism.dart'; // تأكد من وجود المكتبة في pubspec
+import 'package:raseed_admin/screens/login_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -9,159 +10,153 @@ class SignUpScreen extends StatefulWidget {
 }
 
 class _SignUpScreenState extends State<SignUpScreen> {
-  // للتحكم في الحقول
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  
-  // دالة وهمية حالياً لزر التسجيل
-  void _register() {
-    // هنا سنضع كود Firebase Auth لاحقاً
-    print("Name: ${_nameController.text}");
-    print("Email: ${_emailController.text}");
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA), // خلفية رمادية فاتحة جداً مريحة للعين
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 40),
-              
-              // العنوان
-              const Text(
-                "إنشاء حساب مدير",
-                style: TextStyle(
-                  fontSize: 28, 
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2F3542),
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                "أدخل بياناتك للانضمام لفريق الإدارة",
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
-              
-              const SizedBox(height: 50),
-
-              // === حقل الاسم ===
-              _buildBubbleTextField(
-                controller: _nameController,
-                label: "الاسم الكامل",
-                icon: Icons.person_outline,
-              ),
-              const SizedBox(height: 20),
-
-              // === حقل البريد الإلكتروني ===
-              _buildBubbleTextField(
-                controller: _emailController,
-                label: "البريد الإلكتروني",
-                icon: Icons.email_outlined,
-                inputType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 20),
-
-              // === حقل كلمة المرور ===
-              _buildBubbleTextField(
-                controller: _passwordController,
-                label: "كلمة المرور",
-                icon: Icons.lock_outline,
-                isPassword: true,
-              ),
-
-              const SizedBox(height: 40),
-
-              // === زر التسجيل (Red Bubble) ===
-              ElevatedButton(
-                onPressed: _register,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFF4757),
-                  foregroundColor: Colors.white,
-                  elevation: 5,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30), // حواف دائرية بالكامل
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFF5F6FA), Color(0xFFDCDDE1)], // خلفية رمادية هادئة تبرز الزجاج
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              children: [
+                // === الشعار أو العنوان ===
+                const Text(
+                  "انضم للفريق",
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF2F3542),
+                    fontFamily: 'IBMPlexSansArabic',
                   ),
-                  shadowColor: const Color(0xFFFF4757).withOpacity(0.5),
                 ),
-                child: const Text(
-                  "تسجيل حساب جديد",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                const SizedBox(height: 10),
+                const Text(
+                  "سجل بياناتك للبدء في إدارة الطلبات",
+                  style: TextStyle(fontSize: 16, color: Colors.grey, fontFamily: 'IBMPlexSansArabic'),
                 ),
-              ),
+                const SizedBox(height: 40),
 
-              const SizedBox(height: 30),
-
-              // === رابط تسجيل الدخول ===
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    "هل لديك حساب بالفعل؟",
-                    style: TextStyle(color: Colors.grey),
+                // === البطاقة الزجاجية (The Glass Card) ===
+                GlassmorphicContainer(
+                  width: double.infinity,
+                  height: 450,
+                  borderRadius: 30,
+                  blur: 20,
+                  alignment: Alignment.center,
+                  border: 2,
+                  linearGradient: LinearGradient(
+                    colors: [Colors.white.withOpacity(0.8), Colors.white.withOpacity(0.4)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  TextButton(
-                    onPressed: () {
-                      // الانتقال لصفحة تسجيل الدخول
-                      Navigator.push(
-                        context, 
-                        MaterialPageRoute(builder: (context) => const LoginScreen())
-                      );
-                    },
-                    child: const Text(
-                      "قم بتسجيل الدخول",
-                      style: TextStyle(
-                        color: Color(0xFFFF4757), 
-                        fontWeight: FontWeight.bold
-                      ),
+                  borderGradient: LinearGradient(
+                    colors: [Colors.white.withOpacity(0.5), Colors.white.withOpacity(0.1)],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildGlassTextField(controller: _nameController, hint: "الاسم الكامل", icon: Icons.person_outline),
+                        const SizedBox(height: 20),
+                        _buildGlassTextField(controller: _emailController, hint: "البريد الإلكتروني", icon: Icons.email_outlined),
+                        const SizedBox(height: 20),
+                        _buildGlassTextField(controller: _passwordController, hint: "كلمة المرور", icon: Icons.lock_outline, isPassword: true),
+                        
+                        const Spacer(),
+
+                        // === زر الفقاعة الأحمر ===
+                        GestureDetector(
+                          onTap: () {
+                            // منطق التسجيل الحقيقي هنا
+                          },
+                          child: Container(
+                            width: double.infinity,
+                            height: 55,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFF4757),
+                              borderRadius: BorderRadius.circular(50),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFFFF4757).withOpacity(0.4),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: const Center(
+                              child: Text(
+                                "تسجيل حساب جديد",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'IBMPlexSansArabic',
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ],
+                ),
+
+                const SizedBox(height: 30),
+
+                // === رابط تسجيل الدخول ===
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text("هل لديك حساب؟ ", style: TextStyle(color: Colors.grey, fontFamily: 'IBMPlexSansArabic')),
+                    GestureDetector(
+                      onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen())),
+                      child: const Text(
+                        "تسجيل الدخول",
+                        style: TextStyle(
+                          color: Color(0xFFFF4757),
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'IBMPlexSansArabic',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  // دالة مساعدة لبناء الحقول بتصميم موحد
-  Widget _buildBubbleTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    bool isPassword = false,
-    TextInputType inputType = TextInputType.text,
-  }) {
+  Widget _buildGlassTextField({required TextEditingController controller, required String hint, required IconData icon, bool isPassword = false}) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20), // حواف ناعمة
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        color: Colors.white.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(15),
       ),
       child: TextField(
         controller: controller,
         obscureText: isPassword,
-        keyboardType: inputType,
+        style: const TextStyle(fontFamily: 'IBMPlexSansArabic'),
         decoration: InputDecoration(
-          hintText: label,
-          prefixIcon: Icon(icon, color: Colors.grey),
-          border: InputBorder.none, // إخفاء الحدود الافتراضية
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          prefixIcon: Icon(icon, color: const Color(0xFFFF4757)),
+          hintText: hint,
+          hintStyle: const TextStyle(color: Colors.black45, fontFamily: 'IBMPlexSansArabic'),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
         ),
       ),
     );
