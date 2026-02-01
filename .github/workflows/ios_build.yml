@@ -1,0 +1,77 @@
+name: Build iOS IPA (Final Production)
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build_ios:
+    name: Build & Fix
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.0'
+          channel: 'stable'
+
+      - name: Create Dummy Assets (To Prevent Build Fail) 🖼️
+        # هذه الخطوة تنشئ صوراً وهمية لكي لا يفشل البناء بسبب المجلدات الفارغة
+        # بدلاً من تعديل pubspec.yaml يدوياً
+        run: |
+          mkdir -p assets/images
+          mkdir -p assets/memoji
+          touch assets/images/placeholder.png
+          touch assets/memoji/placeholder.png
+
+      - name: Install Dependencies
+        run: |
+          flutter clean
+          flutter pub get
+
+      - name: Fix Xcode Project Settings (Force) 🛠️
+        run: |
+          cd ios
+          # 1. تحويل التوقيع إلى يدوي
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' Runner.xcodeproj/project.pbxproj
+          # 2. حذف هوية المطور
+          sed -i '' 's/"CODE_SIGN_IDENTITY\[sdk=iphoneos\*\]" = "iPhone Developer";/"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";/g' Runner.xcodeproj/project.pbxproj
+          # 3. حذف فريق التطوير
+          sed -i '' 's/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = "";/g' Runner.xcodeproj/project.pbxproj
+          # 4. رفع الإصدار إلى 15.0
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' Runner.xcodeproj/project.pbxproj
+          cd ..
+
+      - name: Install Pods
+        run: |
+          cd ios
+          rm -rf Pods
+          rm -rf Podfile.lock
+          pod install --repo-update
+          cd ..
+
+      - name: Build iOS (No Codesign)
+        # --no-codesign مهمة جداً لـ TrollStore
+        run: flutter build ios --release --no-codesign --verbose
+
+      - name: Package IPA 📦
+        run: |
+          mkdir -p Payload
+          mv build/ios/iphoneos/Runner.app Payload/
+          zip -r RaseedAdmin.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: RaseedAdmin-IPA
+          path: RaseedAdmin.ipa
