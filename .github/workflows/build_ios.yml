@@ -1,49 +1,51 @@
-# نحدد الإصدار 15.0 هنا كما طلبت
-platform :ios, '15.0'
+name: Build iOS IPA (TrollStore)
 
-# CocoaPods analytics disables sending stats
-ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
 
-project 'Runner', {
-  'Debug' => :debug,
-  'Profile' => :release,
-  'Release' => :release,
-}
+jobs:
+  build_ios:
+    name: Build Flutter iOS
+    runs-on: macos-latest
 
-def flutter_root
-  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
-  unless File.exist?(generated_xcode_build_settings_path)
-    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
-  end
+    steps:
+      - uses: actions/checkout@v3
 
-  File.foreach(generated_xcode_build_settings_path) do |line|
-    matches = line.match(/FLUTTER_ROOT\=(.*)/)
-    return matches[1].strip if matches
-  end
-  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig and running flutter pub get"
-end
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
 
-require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.0' # تأكد من النسخة أو اتركها 3.19.0 فهي مستقرة
+          channel: 'stable'
 
-target 'Runner' do
-  use_frameworks!
-  use_modular_headers!
+      - name: Install Dependencies
+        run: flutter pub get
 
-  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
-  
-  # قسم خاص لإضافة مكتبات فايربيس بشكل صحيح
-  target 'RunnerTests' do
-    inherit! :search_paths
-  end
-end
+      - name: Pod Install
+        run: |
+          cd ios
+          pod install
+          cd ..
 
-post_install do |installer|
-  installer.pods_project.targets.each do |target|
-    flutter_additional_ios_build_settings(target)
-    
-    # ضمان التوافق مع iOS 15
-    target.build_configurations.each do |config|
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
-    end
-  end
-end
+      - name: Build iOS App (No Codesign)
+        # بناء نسخة Release بدون توقيع ليقبلها TrollStore
+        run: flutter build ios --release --no-codesign
+
+      - name: Create IPA for TrollStore
+        run: |
+          mkdir -p Payload
+          mv build/ios/iphoneos/Runner.app Payload/
+          zip -r RaseedAdmin.ipa Payload
+          
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: RaseedAdmin-IPA
+          path: RaseedAdmin.ipa
