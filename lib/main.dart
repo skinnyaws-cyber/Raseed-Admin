@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // مكتبة المصادقة
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:raseed_admin/screens/onboarding_screen.dart';
+import 'package:raseed_admin/screens/home_screen.dart'; // الواجهة الرئيسية
 
 void main() async {
   // ضمان تهيئة مكونات فلاتر قبل تشغيل التطبيق
@@ -63,8 +65,20 @@ class MyApp extends StatelessWidget {
         ),
       ),
       
-      // === نقطة البداية ===
-      home: const OnboardingScreen(),
+      // === نقطة البداية الذكية (Smart Router) ===
+      // هذا الكود يفحص: هل المستخدم مسجل دخول أم لا؟
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          // 1. إذا كان هناك بيانات مستخدم (مسجل دخول) -> اذهب للرئيسية فوراً
+          if (snapshot.hasData && snapshot.data != null) {
+            return const HomeScreen();
+          }
+          
+          // 2. إذا لم يكن مسجلاً -> ابدأ من الترحيب
+          return const OnboardingScreen();
+        },
+      ),
     );
   }
 }
