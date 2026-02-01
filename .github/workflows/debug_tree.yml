@@ -1,1 +1,32 @@
-hh
+name: Debug Project Structure 🌳
+
+on:
+  workflow_dispatch: # تشغيل يدوي فقط عند الحاجة
+
+jobs:
+  print_tree:
+    name: Print File Tree
+    runs-on: macos-latest # نستخدم ماك لنرى البيئة التي تبني التطبيق
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Install Tree Tool
+        run: brew install tree
+
+      - name: Generate File Tree (Depth 8)
+        run: |
+          echo "📂 === START OF FILE TREE === 📂"
+          # الأمر يعرض كل الملفات (-a) حتى عمق 8 (-L 8) ويستبعد مجلد git الضخم
+          tree . -L 8 -a -I '.git'
+          echo "📂 === END OF FILE TREE === 📂"
+
+      - name: Check iOS Specific Files
+        # خطوة إضافية للتأكد من وجود الملفات الحيوية
+        run: |
+          echo "🔍 Checking Critical iOS Files..."
+          if [ -f "ios/Podfile" ]; then echo "✅ ios/Podfile exists"; else echo "❌ ios/Podfile MISSING"; fi
+          if [ -f "ios/Runner/Info.plist" ]; then echo "✅ ios/Runner/Info.plist exists"; else echo "❌ ios/Runner/Info.plist MISSING"; fi
+          if [ -f "ios/Runner/GoogleService-Info.plist" ]; then echo "✅ ios/Runner/GoogleService-Info.plist exists"; else echo "❌ ios/Runner/GoogleService-Info.plist MISSING"; fi
+          if [ -d "ios/Runner.xcodeproj" ]; then echo "✅ ios/Runner.xcodeproj exists"; else echo "❌ ios/Runner.xcodeproj MISSING"; fi
