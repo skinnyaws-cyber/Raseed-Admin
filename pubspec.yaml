@@ -16,10 +16,10 @@ dependencies:
   google_fonts: ^8.0.0
 
   # --- Firebase Core Services ---
-  firebase_core: ^12.8.0
-  cloud_firestore: ^12.8.0
-  firebase_auth: ^12.8.0
-  firebase_messaging: ^12.8.0
+  firebase_core: any
+  cloud_firestore: any
+  firebase_auth: any
+  firebase_messaging: any
 
   # --- Utilities ---
   shared_preferences: ^2.5.4
