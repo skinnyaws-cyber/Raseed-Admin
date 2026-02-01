@@ -1,1 +1,67 @@
-sjdghsdjhvdshghdshc
+name: Build iOS IPA (No-Sign / TrollStore)
+
+on:
+  # هذا الخيار يسمح لك بتشغيل البناء يدوياً بضغطة زر
+  workflow_dispatch:
+  # أو يعمل تلقائياً عند رفع تعديل جديد
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build_ios_unsigned:
+    name: Build Unsigned IPA
+    runs-on: macos-latest
+
+    steps:
+      # 1. جلب الكود من المستودع
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. تثبيت Flutter
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          architecture: x64
+
+      # 3. جلب المكتبات
+      - name: Install Dependencies
+        run: flutter pub get
+
+      # 4. تثبيت مكتبات iOS (Pods)
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install --repo-update
+          cd ..
+
+      # 5. بناء التطبيق بدون توقيع (هنا السر)
+      - name: Build iOS App (No Codesign)
+        run: |
+          flutter build ios --release --no-codesign
+
+      # 6. تحويل ملف .app إلى .ipa يدوياً (خدعة TrollStore)
+      - name: Package into IPA
+        run: |
+          # الدخول لمجلد المخرجات
+          cd build/ios/iphoneos
+          
+          # إنشاء مجلد Payload (شرط أساسي لملفات IPA)
+          mkdir Payload
+          
+          # نقل التطبيق داخل المجلد
+          mv Runner.app Payload/
+          
+          # ضغط المجلد ليصبح ملف IPA
+          zip -r Raseed-NoSign.ipa Payload
+          
+          # نقل الملف النهائي للمجلد الرئيسي لرفعه
+          mv Raseed-NoSign.ipa ../../../
+
+      # 7. رفع الملف الناتج لك لتحميله
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Raseed-TrollStore-IPA
+          path: Raseed-NoSign.ipa
+          retention-days: 5
