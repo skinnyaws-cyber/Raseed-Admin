@@ -29,7 +29,8 @@ dependencies:
   # --- UI & Animations ---
   fl_chart: ^1.1.1       # للرسوم البيانية
   glassmorphism: ^3.0.0  # للتأثير الزجاجي
-  lottie: ^3.3.2         # للأنيميشن
+  lottie: ^3.3.2
+  liquid_pull_to_refresh: ^3.0.1
 
 dev_dependencies:
   flutter_test:
