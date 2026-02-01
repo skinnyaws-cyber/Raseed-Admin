@@ -1,0 +1,47 @@
+name: Build Android APK
+
+on:
+  # يعمل هذا الملف عند الضغط اليدوي على الزر
+  workflow_dispatch:
+  # يعمل أيضاً عند رفع أي تعديل على الفرع الرئيسي
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. جلب الكود
+    - uses: actions/checkout@v3
+
+    # 2. إعداد بيئة الجافا (ضرورية للأندرويد)
+    - name: Setup Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+
+    # 3. إعداد Flutter
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        channel: 'stable'
+
+    # 4. تحميل المكتبات
+    - name: Get Dependencies
+      run: flutter pub get
+
+    # 5. بناء ملف APK (نسخة تجريبية)
+    # ملاحظة: نستخدم --debug لأننا لم نقم بإعداد توقيع التطبيق (Keystore) بعد
+    - name: Build APK
+      run: flutter build apk --debug
+
+    # 6. رفع الملف الناتج لكي تتمكن من تحميله
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: raseed-app-debug
+        path: build/app/outputs/flutter-apk/app-debug.apk
