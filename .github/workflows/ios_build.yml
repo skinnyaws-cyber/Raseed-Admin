@@ -1,4 +1,4 @@
-name: Build iOS IPA (Final Production)
+name: Build TrollStore IPA (Final)
 
 on:
   push:
@@ -7,67 +7,58 @@ on:
 
 jobs:
   build_ios:
-    name: Build & Fix
+    name: Build Runner.app & Zip
     runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - name: Setup Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      - name: Setup Flutter
+      # نستخدم القناة المستقرة (Stable) للحصول على أحدث Dart SDK
+      # هذا يحل مشكلة تعارض الإصدارات (3.3.0 vs 3.10.8) التي ظهرت لك
+      - name: Setup Flutter (Latest Stable)
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.0'
           channel: 'stable'
 
-      - name: Create Dummy Assets (To Prevent Build Fail) 🖼️
-        # هذه الخطوة تنشئ صوراً وهمية لكي لا يفشل البناء بسبب المجلدات الفارغة
-        # بدلاً من تعديل pubspec.yaml يدوياً
+      - name: Create Dummy Assets (Prevent Empty Folder Crash)
         run: |
           mkdir -p assets/images
           mkdir -p assets/memoji
-          touch assets/images/placeholder.png
-          touch assets/memoji/placeholder.png
+          touch assets/images/placeholder.txt
+          touch assets/memoji/placeholder.txt
 
       - name: Install Dependencies
         run: |
           flutter clean
           flutter pub get
 
-      - name: Fix Xcode Project Settings (Force) 🛠️
+      - name: Force Disable Signing (Critical Step)
         run: |
           cd ios
-          # 1. تحويل التوقيع إلى يدوي
+          # 1. تحويل نمط التوقيع إلى يدوي
           sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' Runner.xcodeproj/project.pbxproj
-          # 2. حذف هوية المطور
+          # 2. إزالة الهوية المطلوبة
           sed -i '' 's/"CODE_SIGN_IDENTITY\[sdk=iphoneos\*\]" = "iPhone Developer";/"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";/g' Runner.xcodeproj/project.pbxproj
-          # 3. حذف فريق التطوير
-          sed -i '' 's/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = "";/g' Runner.xcodeproj/project.pbxproj
-          # 4. رفع الإصدار إلى 15.0
+          sed -i '' 's/CODE_SIGN_IDENTITY = "iPhone Developer";/CODE_SIGN_IDENTITY = "";/g' Runner.xcodeproj/project.pbxproj
+          # 3. إجبار Xcode على عدم طلب التوقيع
+          sed -i '' 's/CODE_SIGNING_REQUIRED = YES;/CODE_SIGNING_REQUIRED = NO;/g' Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/CODE_SIGNING_ALLOWED = YES;/CODE_SIGNING_ALLOWED = NO;/g' Runner.xcodeproj/project.pbxproj
+          # 4. تحديث إصدار iOS إلى 15.0
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' Runner.xcodeproj/project.pbxproj
           cd ..
 
-      - name: Install Pods
-        run: |
-          cd ios
-          rm -rf Pods
-          rm -rf Podfile.lock
-          pod install --repo-update
-          cd ..
-
-      - name: Build iOS (No Codesign)
-        # --no-codesign مهمة جداً لـ TrollStore
+      - name: Build Runner.app (No Codesign)
+        # هذا الأمر يبني التطبيق فقط ولا يحاول تحويله لـ IPA (لتجنب التوقيع)
         run: flutter build ios --release --no-codesign --verbose
 
-      - name: Package IPA 📦
+      - name: Package IPA for TrollStore
         run: |
-          mkdir -p Payload
+          # 1. إنشاء مجلد Payload
+          mkdir Payload
+          # 2. نقل التطبيق المبني (Runner.app) لداخله
           mv build/ios/iphoneos/Runner.app Payload/
+          # 3. ضغط المجلد وتحويله لملف IPA
           zip -r RaseedAdmin.ipa Payload
 
       - name: Upload IPA
