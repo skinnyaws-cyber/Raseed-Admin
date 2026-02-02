@@ -1,90 +1,115 @@
 import 'package:flutter/material.dart';
-import 'package:glassmorphism/glassmorphism.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart'; // لتنسيق الوقت بشكل مقروء
 
-class OrderDetailsScreen extends StatelessWidget {
+class OrderDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> order;
 
   const OrderDetailsScreen({super.key, required this.order});
+
+  @override
+  State<OrderDetailsScreen> createState() => _OrderDetailsScreenState();
+}
+
+class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
+  bool _isProcessing = false;
+
+  // دالة تحويل الوقت من Firebase Timestamp إلى نص مفهوم
+  String _formatDate(dynamic timestamp) {
+    if (timestamp == null) return "غير متوفر";
+    DateTime date = (timestamp as Timestamp).toDate();
+    return DateFormat('yyyy/MM/dd - hh:mm a').format(date);
+  }
+
+  Future<void> _confirmOrder() async {
+    setState(() => _isProcessing = true);
+    try {
+      await FirebaseFirestore.instance
+          .collection('orders')
+          .doc(widget.order['id'])
+          .update({'status': 'Successful'});
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("تم تأكيد الطلب بنجاح", style: TextStyle(fontFamily: 'IBMPlexSansArabic'))),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("خطأ في التحديث: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        title: const Text("مراجعة بيانات التحويل", style: TextStyle(color: Color(0xFF2F3542), fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic')),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF2F3542)),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF2F3542)),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text("تفاصيل الطلب", style: TextStyle(color: Color(0xFF2F3542), fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic')),
       ),
-      body: Stack(
+      body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              children: [
-                // بطاقة تفاصيل الطلب الزجاجية
-                GlassmorphicContainer(
-                  width: double.infinity,
-                  height: 300,
-                  borderRadius: 30,
-                  blur: 20,
-                  alignment: Alignment.center,
-                  border: 2,
-                  linearGradient: LinearGradient(colors: [Colors.white.withOpacity(0.9), Colors.white.withOpacity(0.6)]),
-                  borderGradient: LinearGradient(colors: [Colors.white.withOpacity(0.5), Colors.white.withOpacity(0.1)]),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      children: [
-                        _buildDetailRow("اسم العميل", order['name']),
-                        const Divider(),
-                        _buildDetailRow("رقم الهاتف", order['phone']),
-                        const Divider(),
-                        _buildDetailRow("المبلغ الإجمالي", "${order['amount']} د.ع"),
-                        const Divider(),
-                        _buildDetailRow("طريقة الدفع", order['type'] ?? "Zain Cash"),
-                      ],
-                    ),
-                  ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
                 ),
-              ],
-            ),
-          ),
-          
-          // === زر تأكيد الطلب الأحمر بالأسفل ===
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.all(30.0),
-              child: GestureDetector(
-                onTap: () {
-                  // هنا نضع منطق التأكيد مع Firebase لاحقاً
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("تم تأكيد الطلب بنجاح", style: TextStyle(fontFamily: 'IBMPlexSansArabic'))),
-                  );
-                },
-                child: Container(
-                  width: double.infinity,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFF4757), // اللون الأحمر الأساسي
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(color: const Color(0xFFFF4757).withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 8)),
-                    ],
-                  ),
-                  child: const Center(
-                    child: Text(
-                      "تأكيد الطلب الآن",
-                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic'),
-                    ),
-                  ),
+                child: Column(
+                  children: [
+                    // تم الالتزام بالتسلسل المطلوب بدقة
+                    _buildDataRow("اسم المستخدم", widget.order['userFullName']),
+                    const Divider(height: 32),
+                    _buildDataRow("رقم الهاتف", widget.order['userPhone']),
+                    const Divider(height: 32),
+                    _buildDataRow("مبلغ الرصيد", "${widget.order['amount']} د.ع"),
+                    const Divider(height: 32),
+                    _buildDataRow("بطاقة الاستلام", widget.order['receivingCard']),
+                    const Divider(height: 32),
+                    _buildDataRow("وقت الطلب", _formatDate(widget.order['timestamp'])),
+                  ],
                 ),
               ),
+            ),
+          ),
+
+          // منطقة العمليات (تأكيد التحويل)
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -2))],
+            ),
+            child: ElevatedButton(
+              onPressed: _isProcessing ? null : _confirmOrder,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF4757),
+                minimumSize: const Size(double.infinity, 56),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              child: _isProcessing
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text(
+                      "تأكيد تحويل المال الحقيقي",
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white, fontFamily: 'IBMPlexSansArabic'),
+                    ),
             ),
           ),
         ],
@@ -92,16 +117,17 @@ class OrderDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.grey, fontFamily: 'IBMPlexSansArabic')),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2F3542), fontFamily: 'IBMPlexSansArabic')),
-        ],
-      ),
+  Widget _buildDataRow(String label, dynamic value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13, fontFamily: 'IBMPlexSansArabic')),
+        const SizedBox(height: 6),
+        Text(
+          value?.toString() ?? "لا توجد بيانات",
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2F3542), fontFamily: 'IBMPlexSansArabic'),
+        ),
+      ],
     );
   }
 }
