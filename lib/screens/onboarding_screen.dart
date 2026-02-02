@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart'; // تأكد أنك أضفت المكتبة أو استخدم الخط المحلي
-import 'package:raseed_admin/screens/signup_screen.dart'; // سننشئ هذه الصفحة لاحقاً
+import 'package:raseed_admin/screens/signup_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -10,10 +9,11 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> with TickerProviderStateMixin {
-  // متحكمات الأنيميشن
-  late AnimationController _introController; // لظهور الشمس بدايةً
-  late AnimationController _exitController;  // للخروج عند ضغط الزر
+  // متحكمات الحركة
+  late AnimationController _introController; 
+  late AnimationController _exitController;  
 
+  // المتغيرات التي كانت تسبب الشاشة البيضاء (تمت تهيئتها جميعاً)
   late Animation<Offset> _cloudLeftMove;
   late Animation<Offset> _cloudRightMove;
   late Animation<Offset> _sunMove;
@@ -23,35 +23,33 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
   void initState() {
     super.initState();
 
-    // 1. إعداد أنيميشن الدخول (الغيوم تبتعد قليلاً لتظهر الشمس)
-    _introController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    );
+    // 1. إعداد المتحكمات
+    _introController = AnimationController(vsync: this, duration: const Duration(seconds: 3));
+    _exitController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500));
 
-    // 2. إعداد أنيميشن الخروج (الغيوم تختفي والشمس تهبط)
-    _exitController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-
-    // الغيوم تبدأ من المنتصف وتنزاح قليلاً في البداية
+    // 2. حركة دخول الغيوم (تنزاح قليلاً لتكشف الوسط)
     _cloudLeftMove = Tween<Offset>(
-      begin: const Offset(0.2, 0), // تبدأ متداخلة قليلاً
-      end: const Offset(-0.3, 0),  // تنزاح لليسار قليلاً
+      begin: const Offset(0.1, 0), 
+      end: const Offset(-0.4, 0),
     ).animate(CurvedAnimation(parent: _introController, curve: Curves.easeInOut));
 
     _cloudRightMove = Tween<Offset>(
-      begin: const Offset(-0.2, 0),
-      end: const Offset(0.3, 0),
+      begin: const Offset(-0.1, 0),
+      end: const Offset(0.4, 0),
     ).animate(CurvedAnimation(parent: _introController, curve: Curves.easeInOut));
 
-    // النص يظهر ببطء
+    // 3. حركة ظهور الشمس (ترتفع قليلاً لتستقر في الوسط)
+    _sunMove = Tween<Offset>(
+      begin: const Offset(0, 0.2), 
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _introController, curve: Curves.easeOutBack));
+
+    // 4. ظهور النصوص بتأثير Fade
     _textFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _introController, curve: const Interval(0.5, 1.0)),
+      CurvedAnimation(parent: _introController, curve: const Interval(0.6, 1.0)),
     );
 
-    // تشغيل الافتتاحية
+    // بدء العرض الافتتاحي
     _introController.forward();
   }
 
@@ -62,12 +60,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
     super.dispose();
   }
 
-  // دالة الخروج عند ضغط الزر
   void _onReadyPressed() async {
-    // 1. تشغيل أنيميشن الخروج
+    // تشغيل أنيميشن الخروج (انسحاب الغيوم وهبوط الشمس)
     await _exitController.forward();
     
-    // 2. الانتقال لصفحة التسجيل
     if (mounted) {
       Navigator.pushReplacement(
         context,
@@ -84,161 +80,119 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
 
   @override
   Widget build(BuildContext context) {
-    // تعريف أنيميشن الخروج السريع (Override)
-    // عند الخروج: الغيمة اليسرى تذهب لأقصى اليسار
-    final exitLeft = Tween<Offset>(begin: Offset.zero, end: const Offset(-2.0, 0))
-        .animate(CurvedAnimation(parent: _exitController, curve: Curves.easeInOutBack));
+    // إعدادات حركة الخروج (الانسحاب الكلي)
+    final exitLeft = Tween<Offset>(begin: Offset.zero, end: const Offset(-2.5, 0))
+        .animate(CurvedAnimation(parent: _exitController, curve: Curves.easeInOutCubic));
     
-    // عند الخروج: الغيمة اليمنى تذهب لأقصى اليمين
-    final exitRight = Tween<Offset>(begin: Offset.zero, end: const Offset(2.0, 0))
-        .animate(CurvedAnimation(parent: _exitController, curve: Curves.easeInOutBack));
+    final exitRight = Tween<Offset>(begin: Offset.zero, end: const Offset(2.5, 0))
+        .animate(CurvedAnimation(parent: _exitController, curve: Curves.easeInOutCubic));
 
-    // عند الخروج: الشمس تهبط للأسفل
-    final exitSun = Tween<Offset>(begin: Offset.zero, end: const Offset(0, 3.0))
-        .animate(CurvedAnimation(parent: _exitController, curve: Curves.easeInOut));
+    final exitSun = Tween<Offset>(begin: Offset.zero, end: const Offset(0, 4.0))
+        .animate(CurvedAnimation(parent: _exitController, curve: Curves.easeInOutExpo));
 
     return Scaffold(
-      backgroundColor: const Color(0xFF87CEEB), // لون السماء الأزرق السماوي
+      backgroundColor: const Color(0xFF87CEEB), // لون السماء
       body: Stack(
         alignment: Alignment.center,
         children: [
-          
           // === 1. الشمس (The Sun) ===
           SlideTransition(
-            position: exitSun, // تتأثر فقط بالخروج
-            child: Container(
-              width: 150,
-              height: 150,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.yellow,
-                boxShadow: [
-                  BoxShadow(color: Colors.orange.withOpacity(0.5), blurRadius: 40, spreadRadius: 10),
-                  BoxShadow(color: Colors.yellowAccent.withOpacity(0.8), blurRadius: 20, spreadRadius: 5),
-                ],
-              ),
-            ),
-          ),
-
-          // === 2. الغيمة اليسرى (Left Cloud) ===
-          SlideTransition(
-            position: exitLeft, // أنيميشن الخروج
+            position: exitSun,
             child: SlideTransition(
-              position: _cloudLeftMove, // أنيميشن الدخول
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Transform.scale(
-                  scale: 2.5,
-                  child: const Icon(Icons.cloud, color: Colors.white, size: 200),
-                  // ملاحظة: استبدل Icon بـ Image.asset('assets/images/cloud_left.png') لاحقاً
+              position: _sunMove,
+              child: Container(
+                width: 140,
+                height: 140,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.yellow,
+                  boxShadow: [
+                    BoxShadow(color: Colors.orange.withOpacity(0.6), blurRadius: 50, spreadRadius: 20),
+                    BoxShadow(color: Colors.yellowAccent.withOpacity(0.4), blurRadius: 20, spreadRadius: 10),
+                  ],
                 ),
               ),
             ),
           ),
 
-          // === 3. الغيمة اليمنى (Right Cloud) ===
+          // === 2. الغيوم الكثيفة ===
+          // الغيمة اليسرى
+          SlideTransition(
+            position: exitLeft,
+            child: SlideTransition(
+              position: _cloudLeftMove,
+              child: const Align(
+                alignment: Alignment.centerLeft,
+                child: Icon(Icons.cloud, color: Colors.white, size: 350),
+              ),
+            ),
+          ),
+
+          // الغيمة اليمنى
           SlideTransition(
             position: exitRight,
             child: SlideTransition(
               position: _cloudRightMove,
-              child: Align(
+              child: const Align(
                 alignment: Alignment.centerRight,
-                child: Transform.scale(
-                  scale: 2.8,
-                  child: const Icon(Icons.cloud, color: Colors.white, size: 200),
-                  // استبدل Icon بـ Image.asset('assets/images/cloud_right.png') لاحقاً
-                ),
+                child: Icon(Icons.cloud, color: Colors.white, size: 400),
               ),
             ),
           ),
 
-          // === 4. النصوص والزر (UI Layer) ===
+          // === 3. واجهة النصوص والزر ===
           FadeTransition(
-            opacity: _textFade, // يظهر بعد انقشاع الغيوم
-            child: AnimatedBuilder(
-              animation: _exitController,
-              builder: (context, child) {
-                // يختفي عند الخروج
-                return Opacity(
-                  opacity: 1.0 - _exitController.value,
-                  child: child,
-                );
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 60),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    // جملة الترحيب
-                    Text(
-                      "أهلاً بك أيها المدير",
-                      style: TextStyle(
-                        fontFamily: 'IBMPlexSansArabic',
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        shadows: [
-                          BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 2))
+            opacity: _textFade,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 80),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  const Text(
+                    "أهلاً بك أيها المدير",
+                    style: TextStyle(
+                      fontFamily: 'IBMPlexSansArabic',
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      shadows: [Shadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 3))],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 60),
+
+                  // === زر الفقاعة الأحمر (Bubble Button) ===
+                  GestureDetector(
+                    onTap: _onReadyPressed,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 18),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(50),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFF6B81), Color(0xFFFF4757)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFFF4757).withOpacity(0.5),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
                         ],
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      "هل أنت جاهز للبدء؟",
-                      style: TextStyle(
-                        fontFamily: 'IBMPlexSansArabic',
-                        fontSize: 18,
-                        color: Colors.white.withOpacity(0.9),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    
-                    const SizedBox(height: 50),
-
-                    // === زر الفقاعة الأحمر (Red Bubble Button) ===
-                    GestureDetector(
-                      onTap: _onReadyPressed,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFF4757), // أحمر حيوي
-                          borderRadius: BorderRadius.circular(50), // حواف دائرية كاملة (Bubble)
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFFF4757).withOpacity(0.4),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                            BoxShadow(
-                              color: Colors.white.withOpacity(0.2),
-                              blurRadius: 5,
-                              offset: const Offset(0, -2), // إضاءة علوية لتعطي تجسيم
-                            ),
-                          ],
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Color(0xFFFF6B81), // أحمر فاتح
-                              Color(0xFFFF4757), // أحمر غامق
-                            ],
-                          ),
-                        ),
-                        child: const Text(
-                          "أنا جاهز",
-                          style: TextStyle(
-                            fontFamily: 'IBMPlexSansArabic',
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
+                      child: const Text(
+                        "I'm ready",
+                        style: TextStyle(
+                          fontFamily: 'IBMPlexSansArabic',
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 30),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
