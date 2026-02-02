@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // مكتبة المصادقة
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:raseed_admin/screens/onboarding_screen.dart';
-import 'package:raseed_admin/screens/home_screen.dart'; // الواجهة الرئيسية
+import 'package:raseed_admin/screens/home_screen.dart';
 
 void main() async {
   // ضمان تهيئة مكونات فلاتر قبل تشغيل التطبيق
@@ -21,11 +21,13 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false, // إخفاء شريط Debug
+      debugShowCheckedModeBanner: false,
       title: 'Raseed Admin',
       
       // === إعدادات اللغة العربية ===
-      localizationsDelegates: const [
+      // تم إزالة كلمة const من هنا لحل مشكلة "Not a constant expression" 
+      // التي ظهرت في سجل الأخطاء الخاص بالمعاينة
+      localizationsDelegates: [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
@@ -37,25 +39,22 @@ class MyApp extends StatelessWidget {
 
       // === إعدادات الثيم والتصميم ===
       theme: ThemeData(
-        fontFamily: 'IBMPlexSansArabic', // الخط الرسمي للتطبيق
+        fontFamily: 'IBMPlexSansArabic', 
         useMaterial3: true,
         
-        // الألوان الأساسية
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFFF4757), // اللون الأحمر الأساسي
+          seedColor: const Color(0xFFFF4757),
           primary: const Color(0xFFFF4757),
           secondary: const Color(0xFF2F3542),
-          surface: const Color(0xFFF5F6FA), // لون الخلفيات الفاتح
+          surface: const Color(0xFFF5F6FA),
         ),
         
-        // تخصيص النصوص الافتراضية
         textTheme: const TextTheme(
           displayLarge: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold),
           bodyLarge: TextStyle(fontFamily: 'IBMPlexSansArabic'),
           labelLarge: TextStyle(fontFamily: 'IBMPlexSansArabic'),
         ),
         
-        // ثيم الأزرار
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFFFF4757),
@@ -66,7 +65,6 @@ class MyApp extends StatelessWidget {
       ),
       
       // === نقطة البداية الذكية (Smart Router) ===
-      // هذا الكود يفحص: هل المستخدم مسجل دخول أم لا؟
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
