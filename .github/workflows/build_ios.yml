@@ -65,7 +65,7 @@ jobs:
 
       # 5. البناء (الآن Xcode مجبر على عدم طلب التوقيع)
       - name: Build Runner.app
-        run: flutter build ios --release --no-codesign --verbose
+        run: flutter build ios --release --no-codesign
 
       # 6. التجهيز لـ TrollStore
       - name: Package IPA
