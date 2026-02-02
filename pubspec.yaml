@@ -5,10 +5,15 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.10.8
+  # تم تعديله لضمان التوافق مع Dart 3.3.0 الموجود في السيرفر وتجنب تعارض النسخ
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
+    sdk: flutter
+
+  # 1. إضافة مكتبة اللغات (كانت مفقودة وتسببت في توقف البناء)
+  flutter_localizations:
     sdk: flutter
 
   # --- UI Icons & Fonts ---
@@ -27,8 +32,8 @@ dependencies:
   intl: ^0.20.2
 
   # --- UI & Animations ---
-  fl_chart: ^1.1.1       # للرسوم البيانية
-  glassmorphism: ^3.0.0  # للتأثير الزجاجي
+  fl_chart: ^1.1.1
+  glassmorphism: ^3.0.0
   lottie: ^3.3.2
   liquid_pull_to_refresh: ^3.0.1
 
@@ -42,14 +47,14 @@ flutter:
 
   # --- Assets Configuration ---
   assets:
-    - assets/images/
-    - assets/memoji/
-    - assets/icons/
+    # - assets/images/
+    # - assets/memoji/
+    # 2. تم تعطيل هذا المسار لأنه غير موجود فعلياً في مجلدات المشروع ويسبب فشل البناء
+    # - assets/icons/
 
   # --- Custom Fonts ---
   fonts:
     - family: IBMPlexSansArabic
       fonts:
-        # تأكد من وضع ملف الخط في هذا المسار بالضبط
         - asset: assets/fonts/IBMPlexSansArabic-SemiBold.ttf
           weight: 600
