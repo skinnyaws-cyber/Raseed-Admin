@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:glassmorphism/glassmorphism.dart'; // تأكد من وجود المكتبة في pubspec
+import 'package:glassmorphism/glassmorphism.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:raseed_admin/screens/login_screen.dart';
+import 'package:raseed_admin/screens/home_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -13,6 +15,48 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _isLoading = false;
+
+  // دالة التسجيل في فايربيس
+  Future<void> _handleSignUp() async {
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty || _nameController.text.isEmpty) {
+      _showMsg("يرجى ملء جميع الحقول");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      // تحديث اسم المدير
+      await userCredential.user?.updateDisplayName(_nameController.text.trim());
+
+      if (mounted) {
+        // الحل الجذري: مسح السجل والتوجه للرئيسية فوراً
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      String message = "حدث خطأ في التسجيل";
+      if (e.code == 'email-already-in-use') message = "هذا الحساب مسجل مسبقاً";
+      else if (e.code == 'weak-password') message = "كلمة المرور ضعيفة جداً";
+      _showMsg(message);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showMsg(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg, style: const TextStyle(fontFamily: 'IBMPlexSansArabic'))),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +66,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFF5F6FA), Color(0xFFDCDDE1)], // خلفية رمادية هادئة تبرز الزجاج
+            colors: [Color(0xFFF5F6FA), Color(0xFFDCDDE1)],
           ),
         ),
         child: Center(
@@ -30,7 +74,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Column(
               children: [
-                // === الشعار أو العنوان ===
                 const Text(
                   "انضم للفريق",
                   style: TextStyle(
@@ -47,7 +90,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
                 const SizedBox(height: 40),
 
-                // === البطاقة الزجاجية (The Glass Card) ===
+                // بطاقة التسجيل الزجاجية
                 GlassmorphicContainer(
                   width: double.infinity,
                   height: 450,
@@ -66,21 +109,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _buildGlassTextField(controller: _nameController, hint: "الاسم الكامل", icon: Icons.person_outline),
+                        _buildField(_nameController, "الاسم الكامل", Icons.person_outline),
                         const SizedBox(height: 20),
-                        _buildGlassTextField(controller: _emailController, hint: "البريد الإلكتروني", icon: Icons.email_outlined),
+                        _buildField(_emailController, "البريد الإلكتروني", Icons.email_outlined),
                         const SizedBox(height: 20),
-                        _buildGlassTextField(controller: _passwordController, hint: "كلمة المرور", icon: Icons.lock_outline, isPassword: true),
-                        
+                        _buildField(_passwordController, "كلمة المرور", Icons.lock_outline, isPass: true),
                         const Spacer(),
-
-                        // === زر الفقاعة الأحمر ===
                         GestureDetector(
-                          onTap: () {
-                            // منطق التسجيل الحقيقي هنا
-                          },
+                          onTap: _isLoading ? null : _handleSignUp,
                           child: Container(
                             width: double.infinity,
                             height: 55,
@@ -88,23 +125,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               color: const Color(0xFFFF4757),
                               borderRadius: BorderRadius.circular(50),
                               boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFFFF4757).withOpacity(0.4),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 8),
-                                ),
+                                BoxShadow(color: const Color(0xFFFF4757).withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 8)),
                               ],
                             ),
-                            child: const Center(
-                              child: Text(
-                                "تسجيل حساب جديد",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  fontFamily: 'IBMPlexSansArabic',
-                                ),
-                              ),
+                            child: Center(
+                              child: _isLoading 
+                                ? const CircularProgressIndicator(color: Colors.white)
+                                : const Text(
+                                    "تسجيل حساب جديد",
+                                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic'),
+                                  ),
                             ),
                           ),
                         ),
@@ -115,24 +145,35 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                 const SizedBox(height: 30),
 
-                // === رابط تسجيل الدخول ===
+                // === الإضافة المطلوبة: رابط تسجيل الدخول ===
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text("هل لديك حساب؟ ", style: TextStyle(color: Colors.grey, fontFamily: 'IBMPlexSansArabic')),
+                    const Text(
+                      "هل لديك حساب مسبق؟ ",
+                      style: TextStyle(color: Colors.grey, fontFamily: 'IBMPlexSansArabic'),
+                    ),
                     GestureDetector(
-                      onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen())),
+                      onTap: () {
+                        // الانتقال لصفحة تسجيل الدخول
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (context) => const LoginScreen()),
+                        );
+                      },
                       child: const Text(
-                        "تسجيل الدخول",
+                        "سجل دخول",
                         style: TextStyle(
                           color: Color(0xFFFF4757),
                           fontWeight: FontWeight.bold,
                           fontFamily: 'IBMPlexSansArabic',
+                          decoration: TextDecoration.underline,
                         ),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -141,7 +182,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  Widget _buildGlassTextField({required TextEditingController controller, required String hint, required IconData icon, bool isPassword = false}) {
+  Widget _buildField(TextEditingController controller, String hint, IconData icon, {bool isPass = false}) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.5),
@@ -149,7 +190,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       ),
       child: TextField(
         controller: controller,
-        obscureText: isPassword,
+        obscureText: isPass,
         style: const TextStyle(fontFamily: 'IBMPlexSansArabic'),
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: const Color(0xFFFF4757)),

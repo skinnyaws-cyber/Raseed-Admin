@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:glassmorphism/glassmorphism.dart';
 import 'dart:math';
+// استيراد الصفحة الجديدة لكي يتعرف عليها الكود
+import 'package:raseed_admin/screens/order_details_screen.dart'; 
 
 class OrdersTab extends StatelessWidget {
   const OrdersTab({super.key});
@@ -50,7 +52,6 @@ class OrdersTab extends StatelessWidget {
           ),
         ),
         actions: [
-          // زر تحديث سريع
           IconButton(
             onPressed: () {},
             icon: const Icon(Icons.refresh_rounded, color: Color(0xFFFF4757)),
@@ -58,7 +59,7 @@ class OrdersTab extends StatelessWidget {
         ],
       ),
       body: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 100), // مساحة سفلية للشريط العائم
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 100), 
         itemCount: dummyOrders.length,
         itemBuilder: (context, index) {
           final order = dummyOrders[index];
@@ -69,15 +70,17 @@ class OrdersTab extends StatelessWidget {
   }
 
   Widget _buildOrderCard(Map<String, dynamic> order, BuildContext context) {
-    // اختيار ميموجي عشوائي (أو بناءً على الرقم)
-    // نفترض أن لديك صور assets/memoji/1.png ... assets/memoji/5.png
-    final int memojiId = (order['phone'].hashCode % 5) + 1; 
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: GestureDetector(
+        // === تفعيل الضغط للتوجيه ===
         onTap: () {
-          // فتح التفاصيل (لاحقاً)
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => OrderDetailsScreen(order: order),
+            ),
+          );
         },
         child: GlassmorphicContainer(
           width: double.infinity,
@@ -110,9 +113,7 @@ class OrdersTab extends StatelessWidget {
                       BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 5)
                     ],
                   ),
-                  child: ClipOval(
-                    // استخدمنا Icon مؤقتاً إذا لم تضع الصور، استبدلها بـ Image.asset فور توفرها
-                    // child: Image.asset('assets/memoji/$memojiId.png', fit: BoxFit.cover),
+                  child: const ClipOval(
                     child: Center(child: Text("🤠", style: TextStyle(fontSize: 35))), 
                   ),
                 ),
@@ -125,7 +126,6 @@ class OrdersTab extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // العنوان
                       Text(
                         order['isNew'] ? "طلب جديد" : "تمت المشاهدة",
                         style: TextStyle(
@@ -136,7 +136,6 @@ class OrdersTab extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      // الاسم
                       Text(
                         order['name'],
                         style: const TextStyle(
@@ -149,13 +148,12 @@ class OrdersTab extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
-                      // المبلغ
                       Text(
                         "${order['amount']} د.ع",
                         style: const TextStyle(
                           fontFamily: 'IBMPlexSansArabic',
                           fontSize: 14,
-                          color: Color(0xFF2ED573), // أخضر للمال
+                          color: Color(0xFF2ED573), 
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -168,7 +166,6 @@ class OrdersTab extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    // النقطة الحمراء (إذا جديد)
                     if (order['isNew'])
                       Container(
                         width: 12,
@@ -186,9 +183,8 @@ class OrdersTab extends StatelessWidget {
                         ),
                       )
                     else
-                      const SizedBox(width: 12, height: 12), // للحفاظ على المحاذاة
+                      const SizedBox(width: 12, height: 12), 
 
-                    // الوقت
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
