@@ -1,67 +1,81 @@
-name: Build iOS IPA (No-Sign / TrollStore)
+name: Build TrollStore IPA (Force Config)
 
 on:
-  # هذا الخيار يسمح لك بتشغيل البناء يدوياً بضغطة زر
-  workflow_dispatch:
-  # أو يعمل تلقائياً عند رفع تعديل جديد
   push:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
-  build_ios_unsigned:
-    name: Build Unsigned IPA
+  build_ios:
+    name: Build Runner.app
     runs-on: macos-latest
 
     steps:
-      # 1. جلب الكود من المستودع
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 2. تثبيت Flutter
-      - name: Setup Flutter
+      - name: Setup Flutter (Stable)
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          architecture: x64
 
-      # 3. جلب المكتبات
+      # 1. إنشاء ملفات وهمية لتجنب خطأ المجلدات الفارغة
+      - name: Create Dummy Assets
+        run: |
+          mkdir -p assets/images
+          mkdir -p assets/memoji
+          touch assets/images/placeholder.txt
+          touch assets/memoji/placeholder.txt
+
+      # 2. تنظيف وتثبيت المكاتب
       - name: Install Dependencies
-        run: flutter pub get
+        run: |
+          flutter clean
+          flutter pub get
 
-      # 4. تثبيت مكتبات iOS (Pods)
-      - name: Install CocoaPods
+      # 3. الخطوة السحرية: حقن إعدادات إلغاء التوقيع في ملف التكوين مباشرة
+      # هذه الطريقة أقوى من تعديل ملف المشروع لأنها تجبر Xcode على قراءة هذه القيم
+      - name: Inject No-Sign Config
+        run: |
+          cd ios/Flutter
+          echo "" >> Release.xcconfig
+          echo "CODE_SIGNING_REQUIRED=NO" >> Release.xcconfig
+          echo "CODE_SIGNING_ALLOWED=NO" >> Release.xcconfig
+          echo "CODE_SIGN_IDENTITY=" >> Release.xcconfig
+          echo "CODE_SIGN_STYLE=Manual" >> Release.xcconfig
+          echo "DEVELOPMENT_TEAM=" >> Release.xcconfig
+          echo "PROVISIONING_PROFILE_SPECIFIER=" >> Release.xcconfig
+          cat Release.xcconfig # للطباعة والتأكد
+          cd ../..
+
+      # 4. إصلاح إعدادات البودز والتوقيع اليدوي في ملف المشروع كإجراء احترازي إضافي
+      - name: Fix Project Settings & Pods
         run: |
           cd ios
+          # تحويل نمط التوقيع ليدوي في ملف المشروع أيضاً
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' Runner.xcodeproj/project.pbxproj
+          # رفع الإصدار لـ 15.0
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' Runner.xcodeproj/project.pbxproj
+          
+          # إعادة تثبيت Pods
+          rm -rf Pods
+          rm -rf Podfile.lock
           pod install --repo-update
           cd ..
 
-      # 5. بناء التطبيق بدون توقيع (هنا السر)
-      - name: Build iOS App (No Codesign)
-        run: |
-          flutter build ios --release --no-codesign
+      # 5. البناء (الآن Xcode مجبر على عدم طلب التوقيع)
+      - name: Build Runner.app
+        run: flutter build ios --release --no-codesign --verbose
 
-      # 6. تحويل ملف .app إلى .ipa يدوياً (خدعة TrollStore)
-      - name: Package into IPA
+      # 6. التجهيز لـ TrollStore
+      - name: Package IPA
         run: |
-          # الدخول لمجلد المخرجات
-          cd build/ios/iphoneos
-          
-          # إنشاء مجلد Payload (شرط أساسي لملفات IPA)
           mkdir Payload
-          
-          # نقل التطبيق داخل المجلد
-          mv Runner.app Payload/
-          
-          # ضغط المجلد ليصبح ملف IPA
-          zip -r Raseed-NoSign.ipa Payload
-          
-          # نقل الملف النهائي للمجلد الرئيسي لرفعه
-          mv Raseed-NoSign.ipa ../../../
+          mv build/ios/iphoneos/Runner.app Payload/
+          zip -r RaseedAdmin.ipa Payload
 
-      # 7. رفع الملف الناتج لك لتحميله
-      - name: Upload IPA Artifact
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Raseed-TrollStore-IPA
-          path: Raseed-NoSign.ipa
-          retention-days: 5
+          name: RaseedAdmin-IPA
+          path: RaseedAdmin.ipa
