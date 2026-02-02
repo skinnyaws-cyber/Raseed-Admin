@@ -10,7 +10,7 @@ class SettingsTab extends StatefulWidget {
 }
 
 class _SettingsTabState extends State<SettingsTab> {
-  bool _isDarkMode = false; // متغير محلي للواجهة (سنربطه لاحقاً)
+  bool _isDarkMode = false; 
   final User? user = FirebaseAuth.instance.currentUser;
 
   @override
@@ -103,18 +103,18 @@ class _SettingsTabState extends State<SettingsTab> {
               children: [
                 SwitchListTile(
                   title: const Text("الوضع الليلي", style: TextStyle(fontFamily: 'IBMPlexSansArabic')),
-                  secondary: const Icon(Icons.dark_mode_outlined),
+                  secondary: const Icon(Icons.dark_mode_outlined), // هنا secondary صحيحة لأنها SwitchListTile
                   activeColor: const Color(0xFFFF4757),
                   value: _isDarkMode,
                   onChanged: (val) {
                     setState(() => _isDarkMode = val);
-                    // هنا سنضع كود تغيير الثيم لاحقاً
                   },
                 ),
                 const Divider(),
                 ListTile(
                   title: const Text("لغة التطبيق", style: TextStyle(fontFamily: 'IBMPlexSansArabic')),
-                  secondary: const Icon(Icons.language),
+                  // تم تغيير secondary إلى leading لإصلاح خطأ البناء
+                  leading: const Icon(Icons.language), 
                   trailing: const Text("العربية", style: TextStyle(color: Colors.grey)),
                   onTap: () {},
                 ),
@@ -156,7 +156,6 @@ class _SettingsTabState extends State<SettingsTab> {
               child: ElevatedButton.icon(
                 onPressed: () async {
                   await FirebaseAuth.instance.signOut();
-                  // العودة لصفحة الدخول (سنربطها لاحقاً)
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFF4757).withOpacity(0.1),
@@ -174,11 +173,10 @@ class _SettingsTabState extends State<SettingsTab> {
     );
   }
 
-  // حاوية زجاجية للقوائم
   Widget _buildSettingsContainer({required List<Widget> children}) {
     return GlassmorphicContainer(
       width: double.infinity,
-      height: children.length * 75.0, // ارتفاع ديناميكي تقريبي
+      height: children.length * 70.0, 
       borderRadius: 20,
       blur: 20,
       alignment: Alignment.center,
@@ -198,10 +196,8 @@ class _SettingsTabState extends State<SettingsTab> {
     );
   }
 
-  // --- Pop-up: تغيير كلمة المرور ---
   void _showChangePasswordDialog() {
     final passController = TextEditingController();
-    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -217,8 +213,8 @@ class _SettingsTabState extends State<SettingsTab> {
               obscureText: true,
             ),
             const SizedBox(height: 10),
-            TextField(
-              decoration: const InputDecoration(hintText: "تأكيد كلمة المرور", prefixIcon: Icon(Icons.lock_reset)),
+            const TextField(
+              decoration: InputDecoration(hintText: "تأكيد كلمة المرور", prefixIcon: Icon(Icons.lock_reset)),
               obscureText: true,
             ),
           ],
@@ -227,7 +223,6 @@ class _SettingsTabState extends State<SettingsTab> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("إلغاء", style: TextStyle(color: Colors.grey))),
           ElevatedButton(
             onPressed: () {
-              // Firebase Logic Here: user?.updatePassword(...)
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم تحديث كلمة المرور")));
             },
@@ -238,10 +233,8 @@ class _SettingsTabState extends State<SettingsTab> {
     );
   }
 
-  // --- Pop-up: تغيير البريد الإلكتروني ---
   void _showChangeEmailDialog() {
     final emailController = TextEditingController();
-    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -262,8 +255,8 @@ class _SettingsTabState extends State<SettingsTab> {
               keyboardType: TextInputType.emailAddress,
             ),
             const SizedBox(height: 10),
-            TextField(
-              decoration: const InputDecoration(hintText: "كلمة المرور الحالية (للتأكيد)", prefixIcon: Icon(Icons.security)),
+            const TextField(
+              decoration: InputDecoration(hintText: "كلمة المرور الحالية (للتأكيد)", prefixIcon: Icon(Icons.security)),
               obscureText: true,
             ),
           ],
@@ -272,7 +265,6 @@ class _SettingsTabState extends State<SettingsTab> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("إلغاء", style: TextStyle(color: Colors.grey))),
           ElevatedButton(
             onPressed: () {
-              // Firebase Logic Here: user?.verifyBeforeUpdateEmail(...)
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم إرسال رابط التأكيد للبريد الجديد")));
             },
