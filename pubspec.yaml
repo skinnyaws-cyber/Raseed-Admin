@@ -5,29 +5,25 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  # تم تعديله لضمان التوافق مع Dart 3.3.0 الموجود في السيرفر وتجنب تعارض النسخ
   sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
 
-  # 1. إضافة مكتبة اللغات (كانت مفقودة وتسببت في توقف البناء)
   flutter_localizations:
     sdk: flutter
 
   # --- UI Icons & Fonts ---
   cupertino_icons: ^1.0.8
   google_fonts: ^8.0.0
-  firebase_messaging: ^14.7.10
-  flutter_local_notifications: ^20.0.0
-  
 
   # --- Firebase Core Services ---
-  firebase_core: any
-  cloud_firestore: any
-  firebase_auth: any
-  firebase_messaging: any
+  firebase_core: ^3.10.1
+  cloud_firestore: ^5.6.1
+  firebase_auth: ^5.4.3
+  firebase_messaging: ^15.2.1
+  flutter_local_notifications: ^18.0.1
 
   # --- Utilities ---
   shared_preferences: ^2.5.4
@@ -35,7 +31,7 @@ dependencies:
   intl: ^0.20.2
 
   # --- UI & Animations ---
-  fl_chart: ^1.1.1
+  fl_chart: ^0.70.1
   glassmorphism: ^3.0.0
   lottie: ^3.3.2
   liquid_pull_to_refresh: ^3.0.1
@@ -43,19 +39,25 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
+  flutter_lints: ^5.0.0
+  # إضافة مكتبة الأيقونات هنا
+  flutter_launcher_icons: ^0.13.1
+
+# إعدادات أيقونة التطبيق (رصيد آدمن)
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/logo_app.png"
+  min_sdk_android: 21
 
 flutter:
   uses-material-design: true
 
-  # --- Assets Configuration ---
+  # تفعيل مجلد الصور ليتعرف عليه التطبيق
   assets:
-    # - assets/images/
-    # - assets/memoji/
-    # 2. تم تعطيل هذا المسار لأنه غير موجود فعلياً في مجلدات المشروع ويسبب فشل البناء
-    # - assets/icons/
+    - assets/images/
 
-  # --- Custom Fonts ---
+  # إعدادات الخطوط العربية
   fonts:
     - family: IBMPlexSansArabic
       fonts:
