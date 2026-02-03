@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_messaging/firebase_messaging.dart'; // المكتبة المطلوبة للإشعارات
+import 'package:firebase_messaging/firebase_messaging.dart'; 
 import 'package:raseed_admin/tabs/orders_tab.dart';
 import 'package:raseed_admin/tabs/notifications_tab.dart';
 import 'package:raseed_admin/tabs/analytics_tab.dart';
-import 'package:raseed_admin/tabs/settings_tab.dart'; 
+import 'package:raseed_admin/tabs/settings_tab.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,15 +26,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    // استدعاء دالة تهيئة الإشعارات عند بدء تشغيل الواجهة
     _setupNotifications();
   }
 
-  // === دالة تهيئة الإشعارات وطلب الأذونات ===
   Future<void> _setupNotifications() async {
     FirebaseMessaging messaging = FirebaseMessaging.instance;
 
-    // 1. طلب إذن الإشعارات (ضروري جداً لنظام iOS)
     NotificationSettings settings = await messaging.requestPermission(
       alert: true,
       badge: true,
@@ -42,13 +39,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      // 2. الحصول على الـ Token الفريد لهذا الجهاز
       String? token = await messaging.getToken();
-      // ملاحظة: سنحتاج لطباعة هذا الـ Token لاحقاً لربطه في Firebase Console
       debugPrint("Device FCM Token: $token");
     }
 
-    // 3. الاستماع للإشعارات أثناء فتح التطبيق (Foreground)
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       if (message.notification != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -73,23 +67,23 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       
       appBar: AppBar(
         backgroundColor: Colors.white,
-        elevation: 0.5, [cite: 53]
+        elevation: 0.5,
         centerTitle: true,
         leading: IconButton(
           icon: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300), [cite: 54]
+            duration: const Duration(milliseconds: 300),
             transitionBuilder: (child, anim) => RotationTransition(
               turns: child.key == const ValueKey('icon1') 
                 ? Tween<double>(begin: 1, end: 0.75).animate(anim) 
-                : Tween<double>(begin: 0.75, end: 1).animate(anim), [cite: 54, 55]
+                : Tween<double>(begin: 0.75, end: 1).animate(anim),
               child: ScaleTransition(scale: anim, child: child),
             ),
             child: _isDrawerOpen
-                ? const Icon(Icons.emergency_rounded, color: Color(0xFFFF4757), key: ValueKey('icon2')) [cite: 55]
-                : const Icon(Icons.menu_rounded, color: Color(0xFF2F3542), key: ValueKey('icon1')), [cite: 55, 56]
+                ? const Icon(Icons.emergency_rounded, color: Color(0xFFFF4757), key: ValueKey('icon2'))
+                : const Icon(Icons.menu_rounded, color: Color(0xFF2F3542), key: ValueKey('icon1')),
           ),
           onPressed: () {
-            _scaffoldKey.currentState!.openDrawer(); [cite: 56]
+            _scaffoldKey.currentState!.openDrawer();
           },
         ),
         title: const Text(
@@ -99,58 +93,58 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             fontFamily: 'IBMPlexSansArabic',
             fontWeight: FontWeight.bold,
             fontSize: 20,
-          ), [cite: 57, 58]
+          ),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search_rounded, color: Color(0xFF2F3542)), [cite: 59]
+            icon: const Icon(Icons.search_rounded, color: Color(0xFF2F3542)),
             onPressed: () {},
           ),
         ],
       ),
 
-      onDrawerChanged: (isOpen) => setState(() => _isDrawerOpen = isOpen), [cite: 59]
+      onDrawerChanged: (isOpen) => setState(() => _isDrawerOpen = isOpen),
       drawer: Drawer(
         backgroundColor: Colors.white,
         child: Column(
           children: [
             const DrawerHeader(
-              decoration: BoxDecoration(color: Color(0xFFF5F6FA)), [cite: 60]
+              decoration: BoxDecoration(color: Color(0xFFF5F6FA)),
               child: Center(
                 child: Text("إدارة رصيد", style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold)),
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.settings_suggest_rounded, color: Color(0xFFFF4757)), [cite: 61]
+              leading: const Icon(Icons.settings_suggest_rounded, color: Color(0xFFFF4757)),
               title: const Text("الإعدادات العامة", style: TextStyle(fontFamily: 'IBMPlexSansArabic')),
               onTap: () {
-                Navigator.pop(context); [cite: 61]
+                Navigator.pop(context);
               },
             ),
           ],
         ),
       ),
 
-      body: _pages[_currentIndex], [cite: 62]
+      body: _pages[_currentIndex],
 
       bottomNavigationBar: Container(
-        height: 70, [cite: 63]
+        height: 70,
         decoration: BoxDecoration(
           color: Colors.white,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
               blurRadius: 10,
-              offset: const Offset(0, -5), [cite: 63, 64]
+              offset: const Offset(0, -5),
             ),
           ],
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly, [cite: 64]
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _buildNavItem(0, Icons.dashboard_rounded, "الطلبات"), [cite: 64]
-            _buildNavItem(1, Icons.notifications_active_rounded, "تنبيه"), [cite: 64]
-            _buildNavItem(2, Icons.analytics_rounded, "الخزنة"), [cite: 65]
+            _buildNavItem(0, Icons.dashboard_rounded, "الطلبات"),
+            _buildNavItem(1, Icons.notifications_active_rounded, "تنبيه"),
+            _buildNavItem(2, Icons.analytics_rounded, "الخزنة"),
           ],
         ),
       ),
@@ -158,30 +152,30 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildNavItem(int index, IconData icon, String label) {
-    bool isSelected = _currentIndex == index; [cite: 66]
+    bool isSelected = _currentIndex == index;
     return GestureDetector(
-      onTap: () => setState(() => _currentIndex = index), [cite: 67]
+      onTap: () => setState(() => _currentIndex = index),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200), [cite: 67]
+        duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFFFF4757).withOpacity(0.1) : Colors.transparent,
-          borderRadius: BorderRadius.circular(12), [cite: 67]
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
-              color: isSelected ? const Color(0xFFFF4757) : const Color(0xFF2F3542).withOpacity(0.5), [cite: 68]
+              color: isSelected ? const Color(0xFFFF4757) : const Color(0xFF2F3542).withOpacity(0.5),
               size: 26,
             ),
-            const SizedBox(height: 4), [cite: 69]
+            const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? const Color(0xFFFF4757) : const Color(0xFF2F3542).withOpacity(0.5), [cite: 69]
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, [cite: 69, 70]
+                color: isSelected ? const Color(0xFFFF4757) : const Color(0xFF2F3542).withOpacity(0.5),
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 fontFamily: 'IBMPlexSansArabic',
                 fontSize: 10,
               ),
