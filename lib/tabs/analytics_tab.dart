@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:glassmorphism/glassmorphism.dart';
-import 'package:intl/intl.dart'; // لتنسيق الأرقام والتواريخ
+import 'package:intl/intl.dart';
 
 class AnalyticsTab extends StatefulWidget {
   const AnalyticsTab({super.key});
@@ -11,17 +10,19 @@ class AnalyticsTab extends StatefulWidget {
 }
 
 class _AnalyticsTabState extends State<AnalyticsTab> {
-  // للتحكم في إدخال رأس المال
-  final TextEditingController _capitalController = TextEditingController();
-  
-  // قيم افتراضية للمتغيرات (سيتم تحديثها من القاعدة)
-  double _currentCapital = 0.0;
-  double _alertThreshold = 50000.0; // حد التنبيه الافتراضي
-  bool _isLoadingCapital = false;
+  // للتحكم في الشريط العلوي والأيقونة المتحولة
+  bool _isMenuOpen = false;
 
-  // حالة المدير
-  String _myStatus = "available"; // available, busy, away
-  String? _forwardToAdminId; // ID المدير الذي حولت له الطلبات
+  // منطق اختيار الفترة المالية
+  String _selectedPeriod = "اليومي";
+  final List<String> _periods = ["اليومي", "الأسبوعي", "الشهري", "السنوي"];
+
+  final TextEditingController _capitalController = TextEditingController();
+  double _currentCapital = 0.0;
+  double _alertThreshold = 50000.0;
+  bool _isLoadingCapital = false;
+  String _myStatus = "available";
+  String? _forwardToAdminId;
 
   final NumberFormat _currencyFormatter = NumberFormat("#,##0", "en_US");
 
@@ -31,14 +32,13 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     _fetchFinancialData();
   }
 
-  // جلب بيانات رأس المال من Firestore
   void _fetchFinancialData() {
     FirebaseFirestore.instance
         .collection('financials')
         .doc('daily_capital')
         .snapshots()
         .listen((snapshot) {
-      if (snapshot.exists) {
+      if (snapshot.exists && mounted) {
         setState(() {
           _currentCapital = (snapshot.data()?['current_amount'] ?? 0).toDouble();
           _alertThreshold = (snapshot.data()?['alert_threshold'] ?? 50000).toDouble();
@@ -47,348 +47,204 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     });
   }
 
-  // تحديث رأس المال (Reset)
   Future<void> _setCapital() async {
     final amount = double.tryParse(_capitalController.text.replaceAll(',', ''));
     if (amount == null) return;
-
     setState(() => _isLoadingCapital = true);
     try {
       await FirebaseFirestore.instance.collection('financials').doc('daily_capital').set({
         'current_amount': amount,
-        'start_amount': amount, // نحتفظ بقيمة البداية للمقارنة
+        'start_amount': amount,
         'alert_threshold': _alertThreshold,
         'last_updated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-      
       _capitalController.clear();
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم تحديث رأس المال اليومي")));
-    } catch (e) {
-      // Error handling
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم تحديث رأس المال بنجاح")));
     } finally {
       if(mounted) setState(() => _isLoadingCapital = false);
     }
   }
 
-  // تحديث حد التنبيه (Slider)
-  Future<void> _updateThreshold(double value) async {
-    setState(() => _alertThreshold = value);
-    // تحديث في القاعدة (Debounce يمكن إضافته لتحسين الأداء)
-    await FirebaseFirestore.instance.collection('financials').doc('daily_capital').update({
-      'alert_threshold': value,
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF5F6FA),
+      // === 1. الشريط العلوي مع الأيقونة المتحولة (Asterisk) ===
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        leading: IconButton(
+          icon: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            transitionBuilder: (child, anim) => RotationTransition(
+              turns: child.key == const ValueKey('icon1') 
+                ? Tween<double>(begin: 1, end: 0.75).animate(anim) 
+                : Tween<double>(begin: 0.75, end: 1).animate(anim),
+              child: ScaleTransition(scale: anim, child: child),
+            ),
+            child: _isMenuOpen
+                ? const Icon(Icons.emergency_rounded, color: Color(0xFFFF4757), key: ValueKey('icon2'))
+                : const Icon(Icons.menu_rounded, color: Color(0xFF2F3542), key: ValueKey('icon1')),
+          ),
+          onPressed: () {
+            setState(() => _isMenuOpen = !_isMenuOpen);
+            // فتح القائمة الجانبية إذا كان مرتبطاً بـ Scaffold الرئيسي
+          },
+        ),
         title: const Text(
           "الخزنة والعمليات",
-          style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, color: Color(0xFF2F3542)),
+          style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF2F3542)),
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // === 1. بطاقات الإحصائيات (Grid) ===
-            const Text("الملخص المالي (الصافي)", style: TextStyle(fontFamily: 'IBMPlexSansArabic', color: Colors.grey)),
-            const SizedBox(height: 10),
-            _buildStatsGrid(),
+            // === 2. قسم إحصائيات الأرباح المطور (Dropdown + Single Card) ===
+            _buildProfitSection(),
 
-            const SizedBox(height: 30),
+            const SizedBox(height: 24),
 
-            // === 2. إدارة رأس المال (The Vault) ===
-            const Text("إدارة رأس المال اليومي", style: TextStyle(fontFamily: 'IBMPlexSansArabic', color: Colors.grey)),
-            const SizedBox(height: 10),
-            _buildCapitalSection(),
+            // === 3. إدارة رأس المال (Solid Design) ===
+            const Text("إدارة رأس المال اليومي", style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, color: Colors.grey)),
+            const SizedBox(height: 12),
+            _buildCapitalCard(),
 
-            const SizedBox(height: 30),
+            const SizedBox(height: 24),
 
-            // === 3. غرفة العمليات (Admin Ops) ===
-            const Text("توزيع المهام والتحويل", style: TextStyle(fontFamily: 'IBMPlexSansArabic', color: Colors.grey)),
-            const SizedBox(height: 10),
-            _buildAdminOpsSection(),
+            // === 4. توزيع المهام (Admin Ops) ===
+            const Text("حالة المدير وتوزيع المهام", style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, color: Colors.grey)),
+            const SizedBox(height: 12),
+            _buildAdminOpsCard(),
           ],
         ),
       ),
     );
   }
 
-  // --- Widget: شبكة الإحصائيات ---
-  Widget _buildStatsGrid() {
-    return StreamBuilder<QuerySnapshot>(
-      // نستمع لكل الطلبات الناجحة لحساب المجموع (في التطبيق الفعلي يفضل استخدام Aggregation Queries لتقليل التكلفة)
-      stream: FirebaseFirestore.instance.collection('orders').where('status', isEqualTo: 'success').snapshots(),
-      builder: (context, snapshot) {
-        double daily = 0;
-        double weekly = 0;
-        double monthly = 0;
-        double yearly = 0;
-
-        if (snapshot.hasData) {
-          final now = DateTime.now();
-          for (var doc in snapshot.data!.docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            final amount = (data['net_amount'] ?? 0).toDouble(); // نستخدم الصافي كما طلبت
-            final timestamp = (data['completed_at'] as Timestamp?)?.toDate() ?? now;
-
-            if (timestamp.year == now.year) {
-              yearly += amount;
-              if (timestamp.month == now.month) {
-                monthly += amount;
-                // أسبوعي تقريبي
-                if (now.difference(timestamp).inDays < 7) weekly += amount;
-                if (timestamp.day == now.day) daily += amount;
-              }
-            }
-          }
-        }
-
-        return GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
-          childAspectRatio: 1.5,
-          children: [
-            _buildStatCard("اليومي", daily, Colors.blueAccent),
-            _buildStatCard("الأسبوعي", weekly, Colors.purpleAccent),
-            _buildStatCard("الشهري", monthly, Colors.orangeAccent),
-            _buildStatCard("السنوي", yearly, const Color(0xFFFF4757)),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildStatCard(String title, double amount, Color color) {
-    return GlassmorphicContainer(
-      width: double.infinity,
-      height: double.infinity,
-      borderRadius: 15,
-      blur: 15,
-      alignment: Alignment.center,
-      border: 1,
-      linearGradient: LinearGradient(colors: [color.withOpacity(0.2), color.withOpacity(0.05)]),
-      borderGradient: LinearGradient(colors: [color.withOpacity(0.5), Colors.transparent]),
+  Widget _buildProfitSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(title, style: const TextStyle(fontFamily: 'IBMPlexSansArabic', color: Colors.black54)),
-          const SizedBox(height: 5),
-          Text(
-            _currencyFormatter.format(amount),
-            style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontSize: 18, fontWeight: FontWeight.bold, color: color),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("صافي الأرباح", style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold)),
+              DropdownButton<String>(
+                value: _selectedPeriod,
+                underline: const SizedBox(),
+                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFFFF4757)),
+                items: _periods.map((p) => DropdownMenuItem(value: p, child: Text(p, style: const TextStyle(fontFamily: 'IBMPlexSansArabic', fontSize: 13)))).toList(),
+                onChanged: (val) => setState(() => _selectedPeriod = val!),
+              ),
+            ],
           ),
-          const Text("د.ع", style: TextStyle(fontSize: 10, color: Colors.grey)),
+          const Divider(height: 24),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('orders').where('status', isEqualTo: 'success').snapshots(),
+            builder: (context, snapshot) {
+              double total = 0;
+              if (snapshot.hasData) {
+                final now = DateTime.now();
+                for (var doc in snapshot.data!.docs) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final amount = (data['net_amount'] ?? 0).toDouble();
+                  final timestamp = (data['completed_at'] as Timestamp?)?.toDate() ?? now;
+
+                  if (_selectedPeriod == "السنوي" && timestamp.year == now.year) total += amount;
+                  else if (_selectedPeriod == "الشهري" && timestamp.month == now.month && timestamp.year == now.year) total += amount;
+                  else if (_selectedPeriod == "الأسبوعي" && now.difference(timestamp).inDays < 7) total += amount;
+                  else if (_selectedPeriod == "اليومي" && timestamp.day == now.day && timestamp.month == now.month) total += amount;
+                }
+              }
+              return Column(
+                children: [
+                  Text(
+                    "${_currencyFormatter.format(total)} د.ع",
+                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF2ED573), fontFamily: 'IBMPlexSansArabic'),
+                  ),
+                  const Text("إجمالي الأرباح للفترة المختارة", style: TextStyle(fontSize: 12, color: Colors.grey, fontFamily: 'IBMPlexSansArabic')),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
   }
 
-  // --- Widget: قسم رأس المال ---
-  Widget _buildCapitalSection() {
-    return GlassmorphicContainer(
-      width: double.infinity,
-      height: 320,
-      borderRadius: 20,
-      blur: 20,
-      alignment: Alignment.center,
-      border: 1,
-      linearGradient: LinearGradient(
-        colors: [Colors.white.withOpacity(0.9), Colors.white.withOpacity(0.6)],
-        begin: Alignment.topLeft, end: Alignment.bottomRight,
+  Widget _buildCapitalCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
       ),
-      borderGradient: LinearGradient(colors: [Colors.white.withOpacity(0.5), Colors.white.withOpacity(0.1)]),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            // إدخال رأس المال
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _capitalController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      hintText: "أدخل رأس المال (مثلاً 250000)",
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.5),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: _isLoadingCapital ? null : _setCapital,
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  ),
-                  child: _isLoadingCapital 
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text("تحديث"),
-                ),
-              ],
+      child: Column(
+        children: [
+          TextField(
+            controller: _capitalController,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              hintText: "تحديث رأس المال اليومي",
+              filled: true,
+              fillColor: const Color(0xFFF5F6FA),
+              suffixIcon: IconButton(icon: const Icon(Icons.check_circle, color: Color(0xFFFF4757)), onPressed: _setCapital),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
             ),
-            
-            const Divider(height: 30),
-
-            // عرض المتبقي
-            const Text("الميزانية المتوفرة الآن", style: TextStyle(fontFamily: 'IBMPlexSansArabic', color: Colors.grey)),
-            Text(
-              "${_currencyFormatter.format(_currentCapital)} د.ع",
-              style: TextStyle(
-                fontFamily: 'IBMPlexSansArabic',
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: _currentCapital < _alertThreshold ? Colors.red : const Color(0xFF2F3542), // أحمر إذا تحت الحد
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // السلايدر (Range Slider Logic)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("تنبيه انخفاض الميزانية عند:", style: TextStyle(fontSize: 12)),
-                Text("${_currencyFormatter.format(_alertThreshold)} د.ع", style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFFF4757))),
-              ],
-            ),
-            Slider(
-              value: _alertThreshold,
-              min: 0,
-              max: 500000, // نصف مليون كحد أقصى للسلايدر
-              divisions: 500, // خطوات كل 1000 دينار (500000 / 500 = 1000)
-              activeColor: const Color(0xFFFF4757),
-              inactiveColor: Colors.grey.shade300,
-              onChanged: (val) {
-                _updateThreshold(val);
-              },
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            "${_currencyFormatter.format(_currentCapital)} د.ع",
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _currentCapital < _alertThreshold ? Colors.red : const Color(0xFF2F3542)),
+          ),
+          const Text("الميزانية الحالية المتوفرة", style: TextStyle(fontSize: 12, color: Colors.grey)),
+          Slider(
+            value: _alertThreshold,
+            min: 0, max: 500000,
+            activeColor: const Color(0xFFFF4757),
+            onChanged: (val) => setState(() => _alertThreshold = val),
+          ),
+        ],
       ),
     );
   }
 
-  // --- Widget: قسم المدراء ---
-  Widget _buildAdminOpsSection() {
-    return GlassmorphicContainer(
-      width: double.infinity,
-      height: 300,
-      borderRadius: 20,
-      blur: 20,
-      alignment: Alignment.center,
-      border: 1,
-      linearGradient: LinearGradient(
-        colors: [const Color(0xFF2F3542).withOpacity(0.05), const Color(0xFF2F3542).withOpacity(0.1)], // لون مختلف قليلاً للتمييز
-        begin: Alignment.topLeft, end: Alignment.bottomRight,
+  Widget _buildAdminOpsCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2F3542),
+        borderRadius: BorderRadius.circular(16),
       ),
-      borderGradient: LinearGradient(colors: [Colors.grey.withOpacity(0.3), Colors.transparent]),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            // حالتي
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("حالتي الآن:", style: TextStyle(fontWeight: FontWeight.bold)),
-                DropdownButton<String>(
-                  value: _myStatus,
-                  underline: Container(),
-                  items: const [
-                    DropdownMenuItem(value: "available", child: Text("🟢 متاح للعمل")),
-                    DropdownMenuItem(value: "busy", child: Text("🟠 مشغول")),
-                    DropdownMenuItem(value: "away", child: Text("🔴 خارج الخدمة")),
-                  ],
-                  onChanged: (val) {
-                    setState(() => _myStatus = val!);
-                    // TODO: Update Admin Doc in Firestore
-                  },
-                ),
-              ],
-            ),
-
-            const Divider(height: 20),
-
-            const Align(alignment: Alignment.centerRight, child: Text("تحويل الطلبات (الطوارئ)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red))),
-            const SizedBox(height: 10),
-            
-            // قائمة المدراء (تخيلية من القاعدة)
-            Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance.collection('admins').snapshots(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                  
-                  // استثناء نفسي من القائمة
-                  // var otherAdmins = snapshot.data!.docs.where((doc) => doc.id != myId).toList();
-                  // للآن سنعرض مثالاً للكود
-                  
-                  return ListView(
-                    children: [
-                      _buildAdminItem("مدير 2 (علي)", "available"),
-                      _buildAdminItem("مدير 3 (سارة)", "busy"),
-                    ],
-                  );
-                },
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("حالتي الآن:", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              DropdownButton<String>(
+                value: _myStatus,
+                dropdownColor: const Color(0xFF2F3542),
+                underline: const SizedBox(),
+                items: const [
+                  DropdownMenuItem(value: "available", child: Text("🟢 متاح", style: TextStyle(color: Colors.white))),
+                  DropdownMenuItem(value: "busy", child: Text("🟠 مشغول", style: TextStyle(color: Colors.white))),
+                  DropdownMenuItem(value: "away", child: Text("🔴 غائب", style: TextStyle(color: Colors.white))),
+                ],
+                onChanged: (val) => setState(() => _myStatus = val!),
               ),
-            ),
-            
-            // زر فك الشراكة
-            if (_forwardToAdminId != null)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                     setState(() => _forwardToAdminId = null);
-                     // Logic to stop forwarding
-                  },
-                  icon: const Icon(Icons.link_off),
-                  label: const Text("استعادة استلام الطلبات (فك التحويل)"),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAdminItem(String name, String status) {
-    bool isAvailable = status == "available";
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: CircleAvatar(
-        backgroundColor: isAvailable ? Colors.green.withOpacity(0.2) : Colors.orange.withOpacity(0.2),
-        child: Icon(Icons.person, color: isAvailable ? Colors.green : Colors.orange),
-      ),
-      title: Text(name, style: const TextStyle(fontFamily: 'IBMPlexSansArabic', fontSize: 14)),
-      subtitle: Text(isAvailable ? "متاح للاستلام" : "مشغول", style: const TextStyle(fontSize: 10)),
-      trailing: ElevatedButton(
-        onPressed: isAvailable ? () {
-          // Logic to transfer
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("تم تحويل طلباتك إلى $name")));
-          setState(() => _forwardToAdminId = "some_id");
-        } : null,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.red,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          minimumSize: const Size(60, 30)
-        ),
-        child: const Text("تحويل لي", style: TextStyle(fontSize: 10)),
+            ],
+          ),
+        ],
       ),
     );
   }
