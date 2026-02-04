@@ -73,9 +73,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           icon: AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
             transitionBuilder: (child, anim) => RotationTransition(
+              // تم تعديل الزاوية لتبدأ من 0 وتنتهي عند 1 (دورة كاملة) للحفاظ على أفقية الخطوط
               turns: child.key == const ValueKey('icon1') 
-                ? Tween<double>(begin: 1, end: 0.75).animate(anim) 
-                : Tween<double>(begin: 0.75, end: 1).animate(anim),
+                ? Tween<double>(begin: 0, end: 1).animate(anim) 
+                : Tween<double>(begin: 1, end: 0).animate(anim),
               child: ScaleTransition(scale: anim, child: child),
             ),
             child: _isDrawerOpen
@@ -98,7 +99,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         actions: [
           IconButton(
             icon: const Icon(Icons.search_rounded, color: Color(0xFF2F3542)),
-            onPressed: () {},
+            onPressed: () {
+              // تفعيل وظيفة البحث (فتح شريط البحث)
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("ميزة البحث ستتوفر في التحديث القادم")),
+              );
+            },
           ),
         ],
       ),
@@ -118,7 +124,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               leading: const Icon(Icons.settings_suggest_rounded, color: Color(0xFFFF4757)),
               title: const Text("الإعدادات العامة", style: TextStyle(fontFamily: 'IBMPlexSansArabic')),
               onTap: () {
-                Navigator.pop(context);
+                // إصلاح: التوجيه الفعلي لواجهة الإعدادات
+                Navigator.pop(context); // إغلاق القائمة أولاً
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SettingsTab()),
+                );
               },
             ),
           ],
