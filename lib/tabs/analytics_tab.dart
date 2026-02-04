@@ -21,7 +21,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
   bool _isLoadingCapital = false;
   
   String _myStatus = "available";
-  String? _forwardToAdminId; // منطق تحويل المهام المعاد 
+  String? _forwardToAdminId;
 
   final NumberFormat _currencyFormatter = NumberFormat("#,##0", "en_US");
 
@@ -29,11 +29,11 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
   void initState() {
     super.initState();
     _fetchFinancialData();
-    _fetchAdminStatus();
+    _fetchAdminStatus(); // استعادة جلب بيانات المدير والتحويل
   }
 
-  // جلب حالة المدير الحالية وإعدادات التحويل
-  void _fetchAdminStatus() async {
+  // منطق جلب حالة المدير وإعدادات تحويل الطلبات من Firestore
+  void _fetchAdminStatus() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
       FirebaseFirestore.instance.collection('admins').doc(uid).snapshots().listen((snap) {
@@ -48,7 +48,11 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
   }
 
   void _fetchFinancialData() {
-    FirebaseFirestore.instance.collection('financials').doc('daily_capital').snapshots().listen((snapshot) {
+    FirebaseFirestore.instance
+        .collection('financials')
+        .doc('daily_capital')
+        .snapshots()
+        .listen((snapshot) {
       if (snapshot.exists && mounted) {
         setState(() {
           _currentCapital = (snapshot.data()?['current_amount'] ?? 0).toDouble();
@@ -58,7 +62,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     });
   }
 
-  // تحديث الحالة والتحويل في Firestore
+  // تحديث الحالة والتحويل في قاعدة البيانات
   Future<void> _updateAdminSettings(String status, String? forwardId) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
@@ -67,6 +71,24 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
         'forwardTo': forwardId,
         'isActive': status == "available",
       });
+    }
+  }
+
+  Future<void> _setCapital() async {
+    final amount = double.tryParse(_capitalController.text.replaceAll(',', ''));
+    if (amount == null) return;
+    setState(() => _isLoadingCapital = true);
+    try {
+      await FirebaseFirestore.instance.collection('financials').doc('daily_capital').set({
+        'current_amount': amount,
+        'start_amount': amount,
+        'alert_threshold': _alertThreshold,
+        'last_updated': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      _capitalController.clear();
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم تحديث رأس المال بنجاح")));
+    } finally {
+      if(mounted) setState(() => _isLoadingCapital = false);
     }
   }
 
@@ -81,7 +103,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
           icon: AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
             transitionBuilder: (child, anim) => RotationTransition(
-              // إصلاح: جعل الخطوط تبقى أفقية عبر دورة كاملة
+              // تم تعديل الدوران لتبقى الخطوط أفقية
               turns: child.key == const ValueKey('icon1') 
                 ? Tween<double>(begin: 0, end: 1).animate(anim) 
                 : Tween<double>(begin: 1, end: 0).animate(anim),
@@ -93,7 +115,10 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
           ),
           onPressed: () => setState(() => _isMenuOpen = !_isMenuOpen),
         ),
-        title: const Text("الخزنة والعمليات", style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, fontSize: 18)),
+        title: const Text(
+          "الخزنة والعمليات",
+          style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF2F3542)),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
@@ -102,81 +127,27 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
           children: [
             _buildProfitSection(),
             const SizedBox(height: 24),
+            const Text("إدارة رأس المال اليومي", style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, color: Colors.grey)),
+            const SizedBox(height: 12),
             _buildCapitalCard(),
             const SizedBox(height: 24),
             const Text("توزيع المهام وحالة النشاط", style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, color: Colors.grey)),
             const SizedBox(height: 12),
-            _buildAdminOpsCard(), // البطاقة المعاد هندستها لتشمل التحويل
+            _buildAdminOpsCard(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAdminOpsCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: const Color(0xFF2F3542), borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text("حالتي الآن:", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic')),
-              DropdownButton<String>(
-                value: _myStatus,
-                dropdownColor: const Color(0xFF2F3542),
-                underline: const SizedBox(),
-                items: const [
-                  DropdownMenuItem(value: "available", child: Text("🟢 متاح", style: TextStyle(color: Colors.white))),
-                  DropdownMenuItem(value: "busy", child: Text("🟠 مشغول", style: TextStyle(color: Colors.white))),
-                  DropdownMenuItem(value: "away", child: Text("🔴 غائب", style: TextStyle(color: Colors.white))),
-                ],
-                onChanged: (val) => _updateAdminSettings(val!, _forwardToAdminId),
-              ),
-            ],
-          ),
-          const Divider(color: Colors.white24, height: 24),
-          // إعادة ميزة تحويل الطلبات لمدير آخر 
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text("تحويل الطلبات إلى:", style: TextStyle(color: Colors.white, fontSize: 13, fontFamily: 'IBMPlexSansArabic')),
-              StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance.collection('admins').where(FieldPath.documentId, isNotEqualTo: FirebaseAuth.instance.currentUser?.uid).snapshots(),
-                builder: (context, snapshot) {
-                  List<DropdownMenuItem<String>> items = [
-                    const DropdownMenuItem(value: null, child: Text("تعطيل التحويل", style: TextStyle(color: Colors.white70, fontSize: 12))),
-                  ];
-                  if (snapshot.hasData) {
-                    for (var doc in snapshot.data!.docs) {
-                      items.add(DropdownMenuItem(
-                        value: doc.id,
-                        child: Text(doc['adminName'] ?? "مدير آخر", style: const TextStyle(color: Colors.white, fontSize: 12)),
-                      ));
-                    }
-                  }
-                  return DropdownButton<String?>(
-                    value: _forwardToAdminId,
-                    dropdownColor: const Color(0xFF2F3542),
-                    underline: const SizedBox(),
-                    items: items,
-                    onChanged: (val) => _updateAdminSettings(_myStatus, val),
-                  );
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ... (دوال _buildProfitSection و _buildCapitalCard تبقى كما هي دون تغيير في المنطق)
   Widget _buildProfitSection() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
       child: Column(
         children: [
           Row(
@@ -186,6 +157,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
               DropdownButton<String>(
                 value: _selectedPeriod,
                 underline: const SizedBox(),
+                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFFFF4757)),
                 items: _periods.map((p) => DropdownMenuItem(value: p, child: Text(p, style: const TextStyle(fontFamily: 'IBMPlexSansArabic', fontSize: 13)))).toList(),
                 onChanged: (val) => setState(() => _selectedPeriod = val!),
               ),
@@ -246,16 +218,56 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     );
   }
 
-  Future<void> _setCapital() async {
-    final amount = double.tryParse(_capitalController.text.replaceAll(',', ''));
-    if (amount == null) return;
-    setState(() => _isLoadingCapital = true);
-    await FirebaseFirestore.instance.collection('financials').doc('daily_capital').set({
-      'current_amount': amount,
-      'alert_threshold': _alertThreshold,
-      'last_updated': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-    _capitalController.clear();
-    if(mounted) setState(() => _isLoadingCapital = false);
+  Widget _buildAdminOpsCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: const Color(0xFF2F3542), borderRadius: BorderRadius.circular(16)),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("حالتي الآن:", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic')),
+              DropdownButton<String>(
+                value: _myStatus,
+                dropdownColor: const Color(0xFF2F3542),
+                underline: const SizedBox(),
+                items: const [
+                  DropdownMenuItem(value: "available", child: Text("🟢 متاح", style: TextStyle(color: Colors.white))),
+                  DropdownMenuItem(value: "busy", child: Text("🟠 مشغول", style: TextStyle(color: Colors.white))),
+                  DropdownMenuItem(value: "away", child: Text("🔴 غائب", style: TextStyle(color: Colors.white))),
+                ],
+                onChanged: (val) => _updateAdminSettings(val!, _forwardToAdminId),
+              ),
+            ],
+          ),
+          const Divider(color: Colors.white24, height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("تحويل الطلبات إلى:", style: TextStyle(color: Colors.white, fontSize: 13, fontFamily: 'IBMPlexSansArabic')),
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('admins').where(FieldPath.documentId, isNotEqualTo: FirebaseAuth.instance.currentUser?.uid).snapshots(),
+                builder: (context, snapshot) {
+                  List<DropdownMenuItem<String?>> items = [const DropdownMenuItem(value: null, child: Text("تعطيل التحويل", style: TextStyle(color: Colors.white70, fontSize: 12)))];
+                  if (snapshot.hasData) {
+                    for (var doc in snapshot.data!.docs) {
+                      items.add(DropdownMenuItem(value: doc.id, child: Text(doc['adminName'] ?? "مدير آخر", style: const TextStyle(color: Colors.white, fontSize: 12))));
+                    }
+                  }
+                  return DropdownButton<String?>(
+                    value: _forwardToAdminId,
+                    dropdownColor: const Color(0xFF2F3542),
+                    underline: const SizedBox(),
+                    items: items,
+                    onChanged: (val) => _updateAdminSettings(_myStatus, val),
+                  );
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
