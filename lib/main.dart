@@ -16,7 +16,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. تهيئة فايربيس (الحل الجذري المعتمد لديك)
+  // 1. تهيئة فايربيس (الإعدادات الرسمية لمشروع رصيد)
   await Firebase.initializeApp(
     options: const FirebaseOptions(
       apiKey: 'AIzaSyDNZxvs_hHmb2MWtcw4GLohNKRgPMeDCP4',
@@ -63,15 +63,18 @@ class MyApp extends StatelessWidget {
         ),
       ),
       
+      // منطق التوجيه التلقائي: إذا وجد مستخدم مسجل يفتح HomeScreen، وإلا يفتح Onboarding
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(body: Center(child: CircularProgressIndicator()));
           }
+          // إذا كان المستخدم مسجلاً دخول مسبقاً [cite: 136]
           if (snapshot.hasData && snapshot.data != null) {
             return const HomeScreen();
           }
+          // إذا كان المستخدم جديداً أو سجل خروجه [cite: 137]
           return const OnboardingScreen();
         },
       ),
