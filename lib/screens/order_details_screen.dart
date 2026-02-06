@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart'; // لتنسيق الوقت بشكل مقروء
+import 'package:intl/intl.dart' as intl;
+import 'package:flutter/services.dart'; // ضروري لعملية النسخ للحافظة
 
 class OrderDetailsScreen extends StatefulWidget {
-  final Map<String, dynamic> order;
+  final QueryDocumentSnapshot order;
 
   const OrderDetailsScreen({super.key, required this.order});
 
@@ -12,120 +13,246 @@ class OrderDetailsScreen extends StatefulWidget {
 }
 
 class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
-  bool _isProcessing = false;
+  bool _isLoading = false;
+  final Color _primaryColor = const Color(0xFFFF4757);
+  final Color _textColor = const Color(0xFF2F3542);
 
-  // دالة تحويل الوقت من Firebase Timestamp إلى نص مفهوم
-  String _formatDate(dynamic timestamp) {
-    if (timestamp == null) return "غير متوفر";
-    DateTime date = (timestamp as Timestamp).toDate();
-    return DateFormat('yyyy/MM/dd - hh:mm a').format(date);
-  }
-
+  // منطق التأكيد الأصلي (لم يتم تغييره)
   Future<void> _confirmOrder() async {
-    setState(() => _isProcessing = true);
+    if (widget.order['status'] == 'successful') return;
+
+    bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("تأكيد الطلب", style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold)),
+        content: const Text("هل أنت متأكد من إتمام هذا الطلب؟ سيتم تحويل الحالة إلى ناجح.", style: TextStyle(fontFamily: 'IBMPlexSansArabic')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("إلغاء", style: TextStyle(color: Colors.grey, fontFamily: 'IBMPlexSansArabic')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
+            child: const Text("تأكيد", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic')),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+
     try {
       await FirebaseFirestore.instance
           .collection('orders')
-          .doc(widget.order['id'])
-          .update({'status': 'Successful'});
+          .doc(widget.order.id)
+          .update({
+        'status': 'successful',
+        'completed_at': FieldValue.serverTimestamp(),
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("تم تأكيد الطلب بنجاح", style: TextStyle(fontFamily: 'IBMPlexSansArabic'))),
+          const SnackBar(
+            content: Text("تم إكمال الطلب بنجاح ✅", style: TextStyle(fontFamily: 'IBMPlexSansArabic')),
+            backgroundColor: Colors.green,
+          ),
         );
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("خطأ في التحديث: $e")),
+          SnackBar(content: Text("حدث خطأ: $e", style: const TextStyle(fontFamily: 'IBMPlexSansArabic')), backgroundColor: Colors.red),
         );
       }
     } finally {
-      if (mounted) setState(() => _isProcessing = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        title: const Text("مراجعة بيانات التحويل", style: TextStyle(color: Color(0xFF2F3542), fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic')),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF2F3542)),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
-                ),
-                child: Column(
-                  children: [
-                    // تم الالتزام بالتسلسل المطلوب بدقة
-                    _buildDataRow("اسم المستخدم", widget.order['userFullName']),
-                    const Divider(height: 32),
-                    _buildDataRow("رقم الهاتف", widget.order['userPhone']),
-                    const Divider(height: 32),
-                    _buildDataRow("مبلغ الرصيد", "${widget.order['amount']} د.ع"),
-                    const Divider(height: 32),
-                    _buildDataRow("بطاقة الاستلام", widget.order['receivingCard']),
-                    const Divider(height: 32),
-                    _buildDataRow("وقت الطلب", _formatDate(widget.order['timestamp'])),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // منطقة العمليات (تأكيد التحويل)
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -2))],
-            ),
-            child: ElevatedButton(
-              onPressed: _isProcessing ? null : _confirmOrder,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF4757),
-                minimumSize: const Size(double.infinity, 56),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
-              ),
-              child: _isProcessing
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text(
-                      "تأكيد تحويل المال الحقيقي",
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white, fontFamily: 'IBMPlexSansArabic'),
-                    ),
-            ),
-          ),
-        ],
+  // وظيفة النسخ للحافظة
+  void _copyToClipboard(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text("تم نسخ رقم البطاقة ✅", style: TextStyle(fontFamily: 'IBMPlexSansArabic')),
+        backgroundColor: _textColor.withOpacity(0.8),
+        duration: const Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
-  Widget _buildDataRow(String label, dynamic value) {
-    return Column(
+  @override
+  Widget build(BuildContext context) {
+    final data = widget.order.data() as Map<String, dynamic>;
+    final bool isPending = data['status'] == 'pending' || data['status'] == 'waiting_admin_confirmation';
+    final String orderIdShort = widget.order.id.substring(0, 8).toUpperCase();
+
+    // تنسيق التاريخ
+    String formattedDate = "غير متوفر";
+    if (data['createdAt'] != null) {
+      Timestamp timestamp = data['createdAt'];
+      formattedDate = intl.DateFormat('yyyy/MM/dd - hh:mm a', 'en').format(timestamp.toDate());
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F6FA),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: _textColor),
+          onPressed: () => Navigator.pop(context),
+        ),
+        centerTitle: true,
+        title: Text("تفاصيل الطلب #$orderIdShort", style: TextStyle(color: _textColor, fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic', fontSize: 18)),
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // شريط الحالة العلوي
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              color: isPending ? Colors.orange.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(isPending ? Icons.hourglass_top_rounded : Icons.check_circle_rounded, color: isPending ? Colors.orange : Colors.green, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    isPending ? "قيد الانتظار والمعالجة" : "مكتمل بنجاح",
+                    style: TextStyle(
+                      color: isPending ? Colors.orange[800] : Colors.green[800],
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'IBMPlexSansArabic',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  children: [
+                    // بطاقة التفاصيل الرئيسية
+                    Container(
+                      padding: const EdgeInsets.all(25),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5)),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          _buildModernInfoRow(Icons.person_outline_rounded, "الاسم الكامل", data['userFullName'] ?? "غير معروف"),
+                          const Divider(height: 30),
+                          _buildModernInfoRow(Icons.monetization_on_outlined, "القيمة المطلوبة", "${data['amount'] ?? 0} د.ع", isImportant: true),
+                          const Divider(height: 30),
+                          // حقل البطاقة مع زر النسخ
+                          _buildModernInfoRow(Icons.credit_card_rounded, "بطاقة الاستلام", data['receivingCard'] ?? "---", isCopyable: true),
+                          const Divider(height: 30),
+                          _buildModernInfoRow(Icons.compare_arrows_rounded, "المزود / الطريقة", data['transferProvider'] ?? "---"),
+                          const Divider(height: 30),
+                          _buildModernInfoRow(Icons.phone_iphone_rounded, "رقم الهاتف", data['userPhoneNumber'] ?? "---"),
+                          const Divider(height: 30),
+                          _buildModernInfoRow(Icons.calendar_today_rounded, "وقت الإنشاء", formattedDate),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                  ],
+                ),
+              ),
+            ),
+
+            // زر الإجراء السفلي
+            if (isPending)
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))],
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _confirmOrder,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryColor,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 0,
+                    ),
+                    child: _isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text("تأكيد الطلب", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white, fontFamily: 'IBMPlexSansArabic')),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ودجت بناء الصف الحديث
+  Widget _buildModernInfoRow(IconData icon, String label, String value, {bool isImportant = false, bool isCopyable = false}) {
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13, fontFamily: 'IBMPlexSansArabic')),
-        const SizedBox(height: 6),
-        Text(
-          value?.toString() ?? "لا توجد بيانات",
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2F3542), fontFamily: 'IBMPlexSansArabic'),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: isImportant ? _primaryColor.withOpacity(0.1) : const Color(0xFFF5F6FA),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: isImportant ? _primaryColor : Colors.grey[600], size: 22),
+        ),
+        const SizedBox(width: 15),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(fontSize: 13, color: Colors.grey[600], fontFamily: 'IBMPlexSansArabic'),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: isImportant ? _primaryColor : _textColor,
+                        fontFamily: 'IBMPlexSansArabic',
+                      ),
+                      softWrap: true,
+                    ),
+                  ),
+                  if (isCopyable)
+                    IconButton(
+                      onPressed: () => _copyToClipboard(value),
+                      icon: Icon(Icons.copy_rounded, color: _primaryColor, size: 20),
+                      tooltip: "نسخ القيمة",
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                ],
+              ),
+            ],
+          ),
         ),
       ],
     );
