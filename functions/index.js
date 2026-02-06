@@ -10,10 +10,10 @@ exports.onorderreadyforadmin = onDocumentUpdated("orders/{orderId}", async (even
     const newData = event.data.after.data();
     const previousData = event.data.before.data();
 
-    // التأكد من تحول الحالة إلى الانتظار
+    // التحقق من حالة الانتظار [cite: 216]
     if (newData.status === "waiting_admin_confirmation" && previousData.status !== "waiting_admin_confirmation") {
         try {
-            // 1. جلب المدراء النشطين مرتبين بالأقدمية (من الأقدم للأحدث)
+            // 1. جلب المدراء النشطين [cite: 217]
             const adminsSnapshot = await admin.firestore()
                 .collection("admins")
                 .where("isActive", "==", true)
@@ -25,23 +25,20 @@ exports.onorderreadyforadmin = onDocumentUpdated("orders/{orderId}", async (even
             const adminsList = adminsSnapshot.docs;
             let selectedAdminDoc;
 
-            // 2. تحديد من عليه الدور عبر فحص آخر طلب تم تخصيص مديراً له
+            // 2. نظام التوزيع العادل (Round Robin) [cite: 218-223]
             const lastOrderSnapshot = await admin.firestore()
                 .collection("orders")
                 .where("assignedTo", "!=", null)
-                .orderBy("assignedTo") // للفلترة
-                .orderBy("createdAt", "desc") // تاريخ إنشاء الطلب وليس تسجيل المدير
+                .orderBy("assignedTo")
+                .orderBy("createdAt", "desc")
                 .limit(1)
                 .get();
 
             if (lastOrderSnapshot.empty) {
-                // إذا كان هذا أول طلب في النظام، نبدأ بأقدم مدير
                 selectedAdminDoc = adminsList[0];
             } else {
                 const lastAdminId = lastOrderSnapshot.docs[0].data().assignedTo;
                 const lastAdminIndex = adminsList.findIndex(doc => doc.id === lastAdminId);
-                
-                // الانتقال للمدير التالي في القائمة، وإذا وصلنا للنهاية نعود للأول (التكرار المستمر)
                 const nextIndex = (lastAdminIndex + 1) % adminsList.length;
                 selectedAdminDoc = adminsList[nextIndex];
             }
@@ -49,8 +46,7 @@ exports.onorderreadyforadmin = onDocumentUpdated("orders/{orderId}", async (even
             let targetAdminData = selectedAdminDoc.data();
             let finalAdminId = selectedAdminDoc.id;
 
-            // 3. منطق التحويل (Forwarding) والحالة (Status)
-            // إذا كان المدير المختار قد حوّل طلباته
+            // 3. منطق التحويل [cite: 224-226]
             if (targetAdminData.forwardTo) {
                 const forwardDoc = await admin.firestore().collection("admins").doc(targetAdminData.forwardTo).get();
                 if (forwardDoc.exists && forwardDoc.data().status !== "away") {
@@ -59,26 +55,33 @@ exports.onorderreadyforadmin = onDocumentUpdated("orders/{orderId}", async (even
                 }
             }
 
-            // 4. حجز الطلب للمدير الذي عليه الدور
+            // 4. تخصيص الطلب في قاعدة البيانات [cite: 226]
             await admin.firestore().collection("orders").doc(event.params.orderId).update({
                 assignedTo: finalAdminId
             });
 
-            // 5. إرسال الإشعار
-            const message = `
-🔔 **طلب مخصص لك (نظام الدور)**
----------------------------
-👤 **الاسم:** ${newData.userFullName || "غير متوفر"}
-💰 **المبلغ:** ${newData.amount} د.ع
----------------------------
-⏰ يرجى المعالجة فوراً.
-            `;
+            const title = "🔔 طلب جديد مخصص لك";
+            const body = `👤 العميل: ${newData.userFullName || "غير متوفر"}\n💰 المبلغ: ${newData.amount} د.ع`;
 
-            await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-                chat_id: targetAdminData.telegramChatId,
-                text: message,
-                parse_mode: "Markdown"
-            });
+            // 5. إرسال إشعار التليجرام 
+            if (targetAdminData.telegramChatId) {
+                await axios.post(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+                    chat_id: targetAdminData.telegramChatId,
+                    text: `*${title}*\n\n${body}`,
+                    parse_mode: "Markdown"
+                }).catch(e => console.error("خطأ تليجرام:", e.message));
+            }
+
+            // 6. الإضافة الجديدة: إرسال إشعار دفع للتطبيق (FCM)
+            // هذا الجزء يضمن ظهور الإشعار داخل هاتفك
+            const fcmToken = targetAdminData.fcmToken; // تأكد من تخزين هذا الحقل عند تسجيل الدخول
+            if (fcmToken) {
+                const message = {
+                    notification: { title: title, body: body },
+                    token: fcmToken,
+                };
+                await admin.messaging().send(message).catch(e => console.error("خطأ FCM:", e.message));
+            }
 
         } catch (error) {
             console.error("خطأ في نظام التوزيع:", error);
