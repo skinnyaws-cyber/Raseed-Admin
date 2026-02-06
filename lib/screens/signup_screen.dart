@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:glassmorphism/glassmorphism.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // إضافة مكتبة الفايرستور
 import 'package:raseed_admin/screens/login_screen.dart';
 import 'package:raseed_admin/screens/home_screen.dart';
 
@@ -17,7 +18,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
 
-  // دالة التسجيل في فايربيس
   Future<void> _handleSignUp() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty || _nameController.text.isEmpty) {
       _showMsg("يرجى ملء جميع الحقول");
@@ -25,18 +25,28 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
 
     setState(() => _isLoading = true);
-
     try {
+      // 1. إنشاء الحساب في Firebase Auth
       UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      // تحديث اسم المدير
+      // 2. تحديث اسم المستخدم في الملف الشخصي
       await userCredential.user?.updateDisplayName(_nameController.text.trim());
 
+      // 3. إنشاء مستند المدير في Firestore (منطق الاحترافية)
+      await FirebaseFirestore.instance.collection('admins').doc(userCredential.user!.uid).set({
+        'adminName': _nameController.text.trim(),
+        'adminEmail': _emailController.text.trim(),
+        'createdAt': FieldValue.serverTimestamp(), // حقل الأقدمية لنظام الدور
+        'status': 'available',                      // الحالة الافتراضية
+        'forwardTo': null,                          // لا يوجد تحويل عند البداية
+        'isActive': true,                           // نشط لاستقبال الإشعارات
+        'telegramChatId': '',                       // بانتظار التهيئة
+      });
+
       if (mounted) {
-        // الحل الجذري: مسح السجل والتوجه للرئيسية فوراً
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const HomeScreen()),
           (route) => false,
@@ -47,6 +57,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
       if (e.code == 'email-already-in-use') message = "هذا الحساب مسجل مسبقاً";
       else if (e.code == 'weak-password') message = "كلمة المرور ضعيفة جداً";
       _showMsg(message);
+    } catch (e) {
+      _showMsg("خطأ غير متوقع: $e");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -90,7 +102,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
                 const SizedBox(height: 40),
 
-                // بطاقة التسجيل الزجاجية
                 GlassmorphicContainer(
                   width: double.infinity,
                   height: 450,
@@ -145,7 +156,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                 const SizedBox(height: 30),
 
-                // === الإضافة المطلوبة: رابط تسجيل الدخول ===
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -155,7 +165,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                     GestureDetector(
                       onTap: () {
-                        // الانتقال لصفحة تسجيل الدخول
                         Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(builder: (context) => const LoginScreen()),
