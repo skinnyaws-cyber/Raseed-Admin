@@ -5,7 +5,7 @@ import 'package:raseed_admin/tabs/orders_tab.dart';
 import 'package:raseed_admin/tabs/notifications_tab.dart';
 import 'package:raseed_admin/tabs/analytics_tab.dart';
 import 'package:raseed_admin/tabs/settings_tab.dart';
-import 'package:raseed_admin/screens/order_details_screen.dart'; // استيراد واجهة التفاصيل
+import 'package:raseed_admin/screens/order_details_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,9 +28,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _setupNotifications();
+    _setupNotifications(); // تهيئة إشعارات التطبيق [cite: 179-180]
   }
 
+  // إعداد استقبال الإشعارات في المقدمة والخلفية [cite: 180-184]
   Future<void> _setupNotifications() async {
     FirebaseMessaging messaging = FirebaseMessaging.instance;
     NotificationSettings settings = await messaging.requestPermission(
@@ -38,6 +39,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       badge: true,
       sound: true,
     );
+    
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       String? token = await messaging.getToken();
       debugPrint("Device FCM Token: $token");
@@ -82,9 +84,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 ? const Icon(Icons.emergency_rounded, color: Color(0xFFFF4757), key: ValueKey('icon2'))
                 : const Icon(Icons.menu_rounded, color: Color(0xFF2F3542), key: ValueKey('icon1')),
           ),
-          onPressed: () {
-            _scaffoldKey.currentState!.openDrawer();
-          },
+          onPressed: () => _scaffoldKey.currentState!.openDrawer(),
         ),
         title: const Text(
           "رصيد آدمن",
@@ -99,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           IconButton(
             icon: const Icon(Icons.search_rounded, color: Color(0xFF2F3542)),
             onPressed: () {
-              // تفعيل محرك البحث الفعلي 
+              // تفعيل واجهة البحث الاحترافية
               showSearch(
                 context: context,
                 delegate: OrderSearchDelegate(),
@@ -124,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               leading: const Icon(Icons.settings_suggest_rounded, color: Color(0xFFFF4757)),
               title: const Text("الإعدادات العامة", style: TextStyle(fontFamily: 'IBMPlexSansArabic')),
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(context); // إغلاق القائمة الجانبية [cite: 194-195]
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const SettingsTab()),
@@ -197,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 }
 
-// === محرك البحث الخاص بالطلبات ===
+// === محرك البحث الخاص بالطلبات (مع إصلاح نوع البيانات) ===
 class OrderSearchDelegate extends SearchDelegate {
   @override
   String get searchFieldLabel => "ابحث باسم المستخدم...";
@@ -221,9 +221,7 @@ class OrderSearchDelegate extends SearchDelegate {
   }
 
   @override
-  Widget buildResults(BuildContext context) {
-    return _buildSearchResults();
-  }
+  Widget buildResults(BuildContext context) => _buildSearchResults();
 
   @override
   Widget buildSuggestions(BuildContext context) {
@@ -254,18 +252,18 @@ class OrderSearchDelegate extends SearchDelegate {
         return ListView.builder(
           itemCount: results.length,
           itemBuilder: (context, index) {
-            var orderData = results[index].data() as Map<String, dynamic>;
-            // إضافة معرف المستند للبيانات لضمان عمل دالة التأكيد [cite: 158]
-            orderData['id'] = results[index].id; 
+            var doc = results[index];
+            var data = doc.data() as Map<String, dynamic>;
 
             return ListTile(
-              title: Text(orderData['userFullName'] ?? "بدون اسم", style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic')),
-              subtitle: Text("${orderData['amount']} د.ع - ${orderData['status']}", style: const TextStyle(fontSize: 12)),
+              title: Text(data['userFullName'] ?? "بدون اسم", style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic')),
+              subtitle: Text("${data['amount']} د.ع - ${data['status']}", style: const TextStyle(fontSize: 12)),
               trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
               onTap: () {
+                // الحل: تمرير الـ QueryDocumentSnapshot مباشرة لحل خطأ Type Mismatch
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => OrderDetailsScreen(order: orderData)),
+                  MaterialPageRoute(builder: (context) => OrderDetailsScreen(order: doc)),
                 );
               },
             );
