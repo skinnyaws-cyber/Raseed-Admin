@@ -29,6 +29,7 @@ dependencies:
   shared_preferences: ^2.5.4
   provider: ^6.1.5+1
   intl: ^0.20.2
+  local_auth: ^3.0.0
 
   # --- UI & Animations ---
   fl_chart: ^0.70.1
