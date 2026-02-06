@@ -24,7 +24,6 @@ class _SettingsTabState extends State<SettingsTab> {
     _loadInitialData();
   }
 
-  // تحميل البيانات الأولية
   Future<void> _loadInitialData() async {
     if (_currentUser == null) return;
     _emailController.text = _currentUser!.email ?? "";
@@ -37,7 +36,7 @@ class _SettingsTabState extends State<SettingsTab> {
     }
   }
 
-  // 1. وظيفة تحديث بيانات الدخول (Email & Security)
+  // 1. تحديث بيانات الدخول
   Future<void> _updateAuthCredentials() async {
     if (_currentUser == null) return;
     setState(() => _isLoading = true);
@@ -48,9 +47,8 @@ class _SettingsTabState extends State<SettingsTab> {
       if (_passwordController.text.isNotEmpty) {
         await _currentUser!.updatePassword(_passwordController.text.trim());
       }
-      
       if (mounted) {
-        Navigator.pop(context); // إغلاق الواجهة المنبثقة
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم تحديث بيانات الدخول بنجاح ✅")));
       }
     } catch (e) {
@@ -60,20 +58,18 @@ class _SettingsTabState extends State<SettingsTab> {
     }
   }
 
-  // 2. وظيفة حفظ الـ Chat ID (Notification Config)
+  // 2. حفظ الـ Chat ID
   Future<void> _saveChatId() async {
     if (_currentUser == null) return;
     setState(() => _isLoading = true);
     try {
-      // استخدام .set مع merge لضمان بقاء باقي البيانات ثابتة 
       await FirebaseFirestore.instance.collection('admins').doc(_currentUser!.uid).set({
         'telegramChatId': _chatIdController.text.trim(),
         'isActive': true,
         'lastUpdate': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-
       if (mounted) {
-        Navigator.pop(context); // إغلاق الواجهة المنبثقة
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم ربط التليجرام بنجاح ✅")));
       }
     } catch (e) {
@@ -83,12 +79,43 @@ class _SettingsTabState extends State<SettingsTab> {
     }
   }
 
-  // 3. وظيفة تسجيل الخروج
+  // 3. تسجيل الخروج
   Future<void> _logout() async {
     await FirebaseAuth.instance.signOut();
     if (mounted) {
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const SignUpScreen()), (route) => false);
+    }
+  }
+
+  // 4. دالة حذف الحساب النهائية (المنطق الجديد)
+  Future<void> _deleteAccount() async {
+    if (_currentUser == null) return;
+    setState(() => _isLoading = true);
+    final String uid = _currentUser!.uid;
+
+    try {
+      // أولاً: حذف مستند المدير من Firestore لضمان مسح البيانات
+      await FirebaseFirestore.instance.collection('admins').doc(uid).delete();
+
+      // ثانياً: حذف المستخدم من نظام المصادقة
+      await _currentUser!.delete();
+
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const SignUpScreen()), (route) => false);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم حذف الحساب والبيانات نهائياً")));
+      }
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        _showError("لدواعي أمنية، يرجى تسجيل الخروج ثم الدخول مرة أخرى قبل حذف الحساب.");
+      } else {
+        _showError("حدث خطأ أثناء الحذف: ${e.message}");
+      }
+    } catch (e) {
+      _showError("فشل حذف الحساب: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -104,30 +131,21 @@ class _SettingsTabState extends State<SettingsTab> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // === الجزء العلوي: الهوية والبريد ===
             _buildHeader(),
-
             const SizedBox(height: 20),
-
-            // === قسم الأمان وبيانات الدخول ===
             _buildSettingTile(
               title: "Email & security",
               subtitle: "تغيير البريد الإلكتروني وكلمة المرور",
               icon: Icons.security_rounded,
               onTap: () => _showAuthModal(),
             ),
-
-            // === قسم تهيئة الإشعارات ===
             _buildSettingTile(
               title: "تهيئة الإشعارات",
               subtitle: "ربط الـ Chat ID لاستلام الطلبات",
               icon: Icons.notifications_active_rounded,
               onTap: () => _showNotificationModal(),
             ),
-
             const SizedBox(height: 30),
-
-            // === أزرار التحكم ===
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: ElevatedButton(
@@ -137,21 +155,23 @@ class _SettingsTabState extends State<SettingsTab> {
                   minimumSize: const Size(double.infinity, 54),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text("تسجيل الخروج", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                child: const Text("تسجيل الخروج", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic')),
               ),
             ),
-
-            TextButton(
-              onPressed: () => _showDeleteConfirmation(),
-              child: const Text("حذف الحساب نهائياً", style: TextStyle(color: Colors.red, decoration: TextDecoration.underline, fontFamily: 'IBMPlexSansArabic')),
-            ),
+            const SizedBox(height: 10),
+            _isLoading 
+              ? const CircularProgressIndicator(color: Colors.red)
+              : TextButton(
+                  onPressed: () => _showDeleteConfirmation(),
+                  child: const Text("حذف الحساب نهائياً", style: TextStyle(color: Colors.red, decoration: TextDecoration.underline, fontFamily: 'IBMPlexSansArabic')),
+                ),
+            const SizedBox(height: 40),
           ],
         ),
       ),
     );
   }
 
-  // بناء الترويسة (Header)
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
@@ -172,7 +192,30 @@ class _SettingsTabState extends State<SettingsTab> {
     );
   }
 
-  // واجهة منبثقة للأمان
+  void _showDeleteConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("حذف الحساب", textAlign: TextAlign.right, style: TextStyle(fontFamily: 'IBMPlexSansArabic')),
+        content: const Text("هل أنت متأكد من حذف الحساب نهائياً؟ سيتم مسح كافة بياناتك من قاعدة البيانات ولا يمكن التراجع عن هذا الإجراء.", 
+          textAlign: TextAlign.right, style: TextStyle(fontFamily: 'IBMPlexSansArabic')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("إلغاء", style: TextStyle(color: Colors.grey, fontFamily: 'IBMPlexSansArabic')),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteAccount();
+            },
+            child: const Text("نعم، احذف نهائياً", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic')),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showAuthModal() {
     showModalBottomSheet(
       context: context,
@@ -197,7 +240,6 @@ class _SettingsTabState extends State<SettingsTab> {
     );
   }
 
-  // واجهة منبثقة للإشعارات
   void _showNotificationModal() {
     showModalBottomSheet(
       context: context,
@@ -212,7 +254,7 @@ class _SettingsTabState extends State<SettingsTab> {
             const SizedBox(height: 20),
             _buildModalField(_chatIdController, "Telegram Chat ID", Icons.send_rounded, isNum: true),
             const SizedBox(height: 10),
-            const Text("يمكنك جلب الـ ID عبر مراسلة @userinfobot", style: TextStyle(fontSize: 11, color: Colors.grey)),
+            const Text("يمكنك جلب الـ ID عبر مراسلة @userinfobot", style: TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'IBMPlexSansArabic')),
             const SizedBox(height: 25),
             _buildSaveButton("حفظ التغييرات", _saveChatId),
             const SizedBox(height: 20),
@@ -222,7 +264,6 @@ class _SettingsTabState extends State<SettingsTab> {
     );
   }
 
-  // مكونات مساعدة
   Widget _buildSettingTile({required String title, required String subtitle, required IconData icon, required VoidCallback onTap}) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
@@ -231,7 +272,7 @@ class _SettingsTabState extends State<SettingsTab> {
         onTap: onTap,
         leading: Icon(icon, color: const Color(0xFFFF4757)),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic', fontSize: 15)),
-        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey, fontFamily: 'IBMPlexSansArabic')),
         trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
       ),
     );
@@ -244,6 +285,7 @@ class _SettingsTabState extends State<SettingsTab> {
       keyboardType: isNum ? TextInputType.number : TextInputType.text,
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: const TextStyle(fontFamily: 'IBMPlexSansArabic'),
         prefixIcon: Icon(icon, color: const Color(0xFFFF4757), size: 20),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -257,11 +299,12 @@ class _SettingsTabState extends State<SettingsTab> {
       child: ElevatedButton(
         onPressed: _isLoading ? null : onAction,
         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF4757), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-        child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        child: _isLoading 
+          ? const CircularProgressIndicator(color: Colors.white) 
+          : Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic')),
       ),
     );
   }
 
-  void _showError(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  void _showDeleteConfirmation() { /* منطق حذف الحساب كما في الكود السابق */ }
+  void _showError(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg, style: const TextStyle(fontFamily: 'IBMPlexSansArabic'))));
 }
