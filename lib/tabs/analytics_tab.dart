@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:local_auth/local_auth.dart'; // مكتبة البصمة
 
 class AnalyticsTab extends StatefulWidget {
   const AnalyticsTab({super.key});
@@ -11,7 +12,7 @@ class AnalyticsTab extends StatefulWidget {
 }
 
 class _AnalyticsTabState extends State<AnalyticsTab> {
-  bool _isMenuOpen = false;
+  final LocalAuthentication auth = LocalAuthentication();
   String _selectedPeriod = "اليومي";
   final List<String> _periods = ["اليومي", "الأسبوعي", "الشهري", "السنوي"];
 
@@ -29,10 +30,9 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
   void initState() {
     super.initState();
     _fetchFinancialData();
-    _fetchAdminStatus(); // استعادة جلب بيانات المدير والتحويل
+    _fetchAdminStatus();
   }
 
-  // منطق جلب حالة المدير وإعدادات تحويل الطلبات من Firestore
   void _fetchAdminStatus() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
@@ -48,11 +48,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
   }
 
   void _fetchFinancialData() {
-    FirebaseFirestore.instance
-        .collection('financials')
-        .doc('daily_capital')
-        .snapshots()
-        .listen((snapshot) {
+    FirebaseFirestore.instance.collection('financials').doc('daily_capital').snapshots().listen((snapshot) {
       if (snapshot.exists && mounted) {
         setState(() {
           _currentCapital = (snapshot.data()?['current_amount'] ?? 0).toDouble();
@@ -62,7 +58,27 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     });
   }
 
-  // تحديث الحالة والتحويل في قاعدة البيانات
+  // منطق البصمة وتغيير الحالة
+  Future<void> _updateStatusWithAuth(String newStatus) async {
+    // إذا كان يحاول العودة من الغياب إلى متاح، اطلب البصمة
+    if (_myStatus == "away" && newStatus == "available") {
+      bool authenticated = false;
+      try {
+        authenticated = await auth.authenticate(
+          localizedReason: 'يرجى تأكيد الهوية للعودة إلى وضع استلام الطلبات',
+          options: const AuthenticationOptions(stickyAuth: true, biometricOnly: true),
+        );
+      } catch (e) {
+        _showError("جهازك لا يدعم البصمة أو حدث خطأ.");
+        return;
+      }
+
+      if (!authenticated) return; // توقف إذا فشل التحقق
+    }
+
+    _updateAdminSettings(newStatus, _forwardToAdminId);
+  }
+
   Future<void> _updateAdminSettings(String status, String? forwardId) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
@@ -78,18 +94,13 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     final amount = double.tryParse(_capitalController.text.replaceAll(',', ''));
     if (amount == null) return;
     setState(() => _isLoadingCapital = true);
-    try {
-      await FirebaseFirestore.instance.collection('financials').doc('daily_capital').set({
-        'current_amount': amount,
-        'start_amount': amount,
-        'alert_threshold': _alertThreshold,
-        'last_updated': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-      _capitalController.clear();
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم تحديث رأس المال بنجاح")));
-    } finally {
-      if(mounted) setState(() => _isLoadingCapital = false);
-    }
+    await FirebaseFirestore.instance.collection('financials').doc('daily_capital').set({
+      'current_amount': amount,
+      'alert_threshold': _alertThreshold,
+      'last_updated': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    _capitalController.clear();
+    if(mounted) setState(() => _isLoadingCapital = false);
   }
 
   @override
@@ -99,26 +110,8 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
-        leading: IconButton(
-          icon: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            transitionBuilder: (child, anim) => RotationTransition(
-              // تم تعديل الدوران لتبقى الخطوط أفقية
-              turns: child.key == const ValueKey('icon1') 
-                ? Tween<double>(begin: 0, end: 1).animate(anim) 
-                : Tween<double>(begin: 1, end: 0).animate(anim),
-              child: ScaleTransition(scale: anim, child: child),
-            ),
-            child: _isMenuOpen
-                ? const Icon(Icons.emergency_rounded, color: Color(0xFFFF4757), key: ValueKey('icon2'))
-                : const Icon(Icons.menu_rounded, color: Color(0xFF2F3542), key: ValueKey('icon1')),
-          ),
-          onPressed: () => setState(() => _isMenuOpen = !_isMenuOpen),
-        ),
-        title: const Text(
-          "الخزنة والعمليات",
-          style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF2F3542)),
-        ),
+        centerTitle: true,
+        title: const Text("الخزنة والعمليات", style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF2F3542))),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
@@ -127,13 +120,13 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
           children: [
             _buildProfitSection(),
             const SizedBox(height: 24),
-            const Text("إدارة رأس المال اليومي", style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, color: Colors.grey)),
-            const SizedBox(height: 12),
             _buildCapitalCard(),
             const SizedBox(height: 24),
             const Text("توزيع المهام وحالة النشاط", style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, color: Colors.grey)),
             const SizedBox(height: 12),
-            _buildAdminOpsCard(),
+            _buildStatusSelector(), // اختيار حالتي
+            const SizedBox(height: 16),
+            _buildAdminsList(), // قائمة المدراء للتحويل
           ],
         ),
       ),
@@ -143,21 +136,16 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
   Widget _buildProfitSection() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text("صافي الأرباح", style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold)),
+              const Text("إجمالي أرباح النظام", style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold)),
               DropdownButton<String>(
                 value: _selectedPeriod,
                 underline: const SizedBox(),
-                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFFFF4757)),
                 items: _periods.map((p) => DropdownMenuItem(value: p, child: Text(p, style: const TextStyle(fontFamily: 'IBMPlexSansArabic', fontSize: 13)))).toList(),
                 onChanged: (val) => setState(() => _selectedPeriod = val!),
               ),
@@ -165,25 +153,26 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
           ),
           const Divider(height: 24),
           StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('orders').where('status', isEqualTo: 'success').snapshots(),
+            stream: FirebaseFirestore.instance.collection('orders').where('status', isEqualTo: 'successful').snapshots(),
             builder: (context, snapshot) {
-              double total = 0;
+              double totalCommission = 0;
               if (snapshot.hasData) {
                 final now = DateTime.now();
                 for (var doc in snapshot.data!.docs) {
                   final data = doc.data() as Map<String, dynamic>;
-                  final amount = (data['net_amount'] ?? 0).toDouble();
+                  final commission = (data['commission'] ?? 0).toDouble();
                   final timestamp = (data['completed_at'] as Timestamp?)?.toDate() ?? now;
-                  if (_selectedPeriod == "السنوي" && timestamp.year == now.year) total += amount;
-                  else if (_selectedPeriod == "الشهري" && timestamp.month == now.month) total += amount;
-                  else if (_selectedPeriod == "الأسبوعي" && now.difference(timestamp).inDays < 7) total += amount;
-                  else if (_selectedPeriod == "اليومي" && timestamp.day == now.day) total += amount;
+                  
+                  if (_selectedPeriod == "السنوي" && timestamp.year == now.year) totalCommission += commission;
+                  else if (_selectedPeriod == "الشهري" && timestamp.month == now.month) totalCommission += commission;
+                  else if (_selectedPeriod == "الأسبوعي" && now.difference(timestamp).inDays < 7) totalCommission += commission;
+                  else if (_selectedPeriod == "اليومي" && timestamp.day == now.day && timestamp.month == now.month) totalCommission += commission;
                 }
               }
               return Column(
                 children: [
-                  Text("${_currencyFormatter.format(total)} د.ع", style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF2ED573), fontFamily: 'IBMPlexSansArabic')),
-                  const Text("إجمالي الأرباح للفترة المختارة", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  Text("${_currencyFormatter.format(totalCommission)} د.ع", style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF2ED573), fontFamily: 'IBMPlexSansArabic')),
+                  const Text("صافي عمولات كافة المدراء", style: TextStyle(fontSize: 12, color: Colors.grey)),
                 ],
               );
             },
@@ -211,63 +200,101 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
           ),
           const SizedBox(height: 20),
           Text("${_currencyFormatter.format(_currentCapital)} د.ع", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _currentCapital < _alertThreshold ? Colors.red : const Color(0xFF2F3542))),
-          const Text("الميزانية الحالية المتوفرة", style: TextStyle(fontSize: 12, color: Colors.grey)),
-          Slider(value: _alertThreshold, min: 0, max: 500000, activeColor: const Color(0xFFFF4757), onChanged: (val) => setState(() => _alertThreshold = val)),
+          const Text("الميزانية الحالية (تخصم تلقائياً عند النجاح)", style: TextStyle(fontSize: 12, color: Colors.grey)),
+          const SizedBox(height: 10),
+          Slider(value: _alertThreshold, min: 0, max: 1000000, activeColor: const Color(0xFFFF4757), onChanged: (val) => setState(() => _alertThreshold = val)),
+          Text("تنبيه عند الوصول لـ: ${_currencyFormatter.format(_alertThreshold)}", style: const TextStyle(fontSize: 10, color: Colors.grey)),
         ],
       ),
     );
   }
 
-  Widget _buildAdminOpsCard() {
+  Widget _buildStatusSelector() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: const Color(0xFF2F3542), borderRadius: BorderRadius.circular(16)),
-      child: Column(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text("حالتي الآن:", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic')),
-              DropdownButton<String>(
-                value: _myStatus,
-                dropdownColor: const Color(0xFF2F3542),
-                underline: const SizedBox(),
-                items: const [
-                  DropdownMenuItem(value: "available", child: Text("🟢 متاح", style: TextStyle(color: Colors.white))),
-                  DropdownMenuItem(value: "busy", child: Text("🟠 مشغول", style: TextStyle(color: Colors.white))),
-                  DropdownMenuItem(value: "away", child: Text("🔴 غائب", style: TextStyle(color: Colors.white))),
-                ],
-                onChanged: (val) => _updateAdminSettings(val!, _forwardToAdminId),
-              ),
-            ],
+          _buildStatusBtn("available", "متاح", Colors.green),
+          _buildStatusBtn("busy", "مشغول", Colors.orange),
+          _buildStatusBtn("away", "غائب", Colors.red),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBtn(String status, String label, Color color) {
+    bool isMe = _myStatus == status;
+    return GestureDetector(
+      onTap: () => _updateStatusWithAuth(status),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(color: isMe ? color : Colors.transparent, borderRadius: BorderRadius.circular(10)),
+        child: Text(label, style: TextStyle(color: isMe ? Colors.white : Colors.white60, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  Widget _buildAdminsList() {
+    return Container(
+      height: 300,
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text("تحويل الطلبات لمدير آخر", style: TextStyle(fontWeight: FontWeight.bold)),
           ),
-          const Divider(color: Colors.white24, height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text("تحويل الطلبات إلى:", style: TextStyle(color: Colors.white, fontSize: 13, fontFamily: 'IBMPlexSansArabic')),
-              StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance.collection('admins').where(FieldPath.documentId, isNotEqualTo: FirebaseAuth.instance.currentUser?.uid).snapshots(),
-                builder: (context, snapshot) {
-                  List<DropdownMenuItem<String?>> items = [const DropdownMenuItem(value: null, child: Text("تعطيل التحويل", style: TextStyle(color: Colors.white70, fontSize: 12)))];
-                  if (snapshot.hasData) {
-                    for (var doc in snapshot.data!.docs) {
-                      items.add(DropdownMenuItem(value: doc.id, child: Text(doc['adminName'] ?? "مدير آخر", style: const TextStyle(color: Colors.white, fontSize: 12))));
-                    }
-                  }
-                  return DropdownButton<String?>(
-                    value: _forwardToAdminId,
-                    dropdownColor: const Color(0xFF2F3542),
-                    underline: const SizedBox(),
-                    items: items,
-                    onChanged: (val) => _updateAdminSettings(_myStatus, val),
-                  );
-                },
-              ),
-            ],
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('admins').snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                
+                var docs = snapshot.data!.docs.where((d) => d.id != FirebaseAuth.instance.currentUser?.uid).toList();
+                
+                return ListView.builder(
+                  padding: EdgeInsets.zero,
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    var data = docs[index].data() as Map<String, dynamic>;
+                    String status = data['status'] ?? "away";
+                    bool isSelected = _forwardToAdminId == docs[index].id;
+
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: _getStatusColor(status).withOpacity(0.2),
+                        child: Icon(Icons.person, color: _getStatusColor(status), size: 18),
+                      ),
+                      title: Text(data['adminName'] ?? "مدير", style: const TextStyle(fontSize: 14)),
+                      subtitle: Text(_getStatusText(status), style: TextStyle(fontSize: 11, color: _getStatusColor(status))),
+                      trailing: isSelected 
+                        ? IconButton(icon: const Icon(Icons.cancel, color: Colors.red), onPressed: () => _updateAdminSettings(_myStatus, null))
+                        : IconButton(icon: const Icon(Icons.forward_to_inbox, color: Colors.blue), onPressed: () => _updateAdminSettings(_myStatus, docs[index].id)),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
     );
   }
+
+  Color _getStatusColor(String status) {
+    if (status == "available") return Colors.green;
+    if (status == "busy") return Colors.orange;
+    return Colors.red;
+  }
+
+  String _getStatusText(String status) {
+    if (status == "available") return "متاح لاستلام الطلبات";
+    if (status == "busy") return "مشغول حالياً";
+    return "خارج العمل (غائب)";
+  }
+
+  void _showError(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 }
