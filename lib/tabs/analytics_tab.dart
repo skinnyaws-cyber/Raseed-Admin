@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
-import 'package:local_auth/local_auth.dart'; // مكتبة البصمة
 
 class AnalyticsTab extends StatefulWidget {
   const AnalyticsTab({super.key});
@@ -12,7 +11,6 @@ class AnalyticsTab extends StatefulWidget {
 }
 
 class _AnalyticsTabState extends State<AnalyticsTab> {
-  final LocalAuthentication auth = LocalAuthentication();
   String _selectedPeriod = "اليومي";
   final List<String> _periods = ["اليومي", "الأسبوعي", "الشهري", "السنوي"];
 
@@ -33,6 +31,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     _fetchAdminStatus();
   }
 
+  // جلب حالة المدير الحالي وإعدادات التحويل من Firestore [cite: 57-58]
   void _fetchAdminStatus() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
@@ -47,6 +46,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     }
   }
 
+  // جلب بيانات الميزانية ورأس المال [cite: 59-60]
   void _fetchFinancialData() {
     FirebaseFirestore.instance.collection('financials').doc('daily_capital').snapshots().listen((snapshot) {
       if (snapshot.exists && mounted) {
@@ -58,27 +58,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     });
   }
 
-  // منطق البصمة وتغيير الحالة
-  Future<void> _updateStatusWithAuth(String newStatus) async {
-    // إذا كان يحاول العودة من الغياب إلى متاح، اطلب البصمة
-    if (_myStatus == "away" && newStatus == "available") {
-      bool authenticated = false;
-      try {
-        authenticated = await auth.authenticate(
-          localizedReason: 'يرجى تأكيد الهوية للعودة إلى وضع استلام الطلبات',
-          options: const AuthenticationOptions(stickyAuth: true, biometricOnly: true),
-        );
-      } catch (e) {
-        _showError("جهازك لا يدعم البصمة أو حدث خطأ.");
-        return;
-      }
-
-      if (!authenticated) return; // توقف إذا فشل التحقق
-    }
-
-    _updateAdminSettings(newStatus, _forwardToAdminId);
-  }
-
+  // تحديث الحالة والتحويل مباشرة (بدون بصمة) [cite: 60-61]
   Future<void> _updateAdminSettings(String status, String? forwardId) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
@@ -90,6 +70,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     }
   }
 
+  // تحديث رأس المال اليدوي [cite: 62-65]
   Future<void> _setCapital() async {
     final amount = double.tryParse(_capitalController.text.replaceAll(',', ''));
     if (amount == null) return;
@@ -111,7 +92,11 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
         backgroundColor: Colors.white,
         elevation: 0.5,
         centerTitle: true,
-        title: const Text("الخزنة والعمليات", style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF2F3542))),
+        // إزالة أيقونة القائمة بناءً على طلبك [cite: 66-69]
+        title: const Text(
+          "الخزنة والعمليات",
+          style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF2F3542)),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
@@ -124,7 +109,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
             const SizedBox(height: 24),
             const Text("توزيع المهام وحالة النشاط", style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, color: Colors.grey)),
             const SizedBox(height: 12),
-            _buildStatusSelector(), // اختيار حالتي
+            _buildStatusSelector(), // اختيار الحالة
             const SizedBox(height: 16),
             _buildAdminsList(), // قائمة المدراء للتحويل
           ],
@@ -133,6 +118,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     );
   }
 
+  // حساب الأرباح الشاملة (عمولة النظام بالكامل) [cite: 72-85]
   Widget _buildProfitSection() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -164,9 +150,9 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
                   final timestamp = (data['completed_at'] as Timestamp?)?.toDate() ?? now;
                   
                   if (_selectedPeriod == "السنوي" && timestamp.year == now.year) totalCommission += commission;
-                  else if (_selectedPeriod == "الشهري" && timestamp.month == now.month) totalCommission += commission;
+                  else if (_selectedPeriod == "الشهري" && timestamp.month == now.month && timestamp.year == now.year) totalCommission += commission;
                   else if (_selectedPeriod == "الأسبوعي" && now.difference(timestamp).inDays < 7) totalCommission += commission;
-                  else if (_selectedPeriod == "اليومي" && timestamp.day == now.day && timestamp.month == now.month) totalCommission += commission;
+                  else if (_selectedPeriod == "اليومي" && timestamp.day == now.day && timestamp.month == now.month && timestamp.year == now.year) totalCommission += commission;
                 }
               }
               return Column(
@@ -182,6 +168,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     );
   }
 
+  // إدارة الميزانية مع خصم تلقائي وتنبيه [cite: 86-89]
   Widget _buildCapitalCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -200,9 +187,9 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
           ),
           const SizedBox(height: 20),
           Text("${_currencyFormatter.format(_currentCapital)} د.ع", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _currentCapital < _alertThreshold ? Colors.red : const Color(0xFF2F3542))),
-          const Text("الميزانية الحالية (تخصم تلقائياً عند النجاح)", style: TextStyle(fontSize: 12, color: Colors.grey)),
+          const Text("الميزانية الحالية المتوفرة", style: TextStyle(fontSize: 12, color: Colors.grey)),
           const SizedBox(height: 10),
-          Slider(value: _alertThreshold, min: 0, max: 1000000, activeColor: const Color(0xFFFF4757), onChanged: (val) => setState(() => _alertThreshold = val)),
+          Slider(value: _alertThreshold.clamp(0, 1000000), min: 0, max: 1000000, activeColor: const Color(0xFFFF4757), onChanged: (val) => setState(() => _alertThreshold = val)),
           Text("تنبيه عند الوصول لـ: ${_currencyFormatter.format(_alertThreshold)}", style: const TextStyle(fontSize: 10, color: Colors.grey)),
         ],
       ),
@@ -227,25 +214,26 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
   Widget _buildStatusBtn(String status, String label, Color color) {
     bool isMe = _myStatus == status;
     return GestureDetector(
-      onTap: () => _updateStatusWithAuth(status),
+      onTap: () => _updateAdminSettings(status, _forwardToAdminId), // تحديث مباشر [cite: 92]
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(color: isMe ? color : Colors.transparent, borderRadius: BorderRadius.circular(10)),
-        child: Text(label, style: TextStyle(color: isMe ? Colors.white : Colors.white60, fontWeight: FontWeight.bold)),
+        child: Text(label, style: TextStyle(color: isMe ? Colors.white : Colors.white60, fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic')),
       ),
     );
   }
 
+  // قائمة المدراء والتحويل التفاعلية [cite: 94-98]
   Widget _buildAdminsList() {
     return Container(
-      height: 300,
+      height: 350,
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Padding(
             padding: EdgeInsets.all(16),
-            child: Text("تحويل الطلبات لمدير آخر", style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text("تحويل الطلبات لمدير آخر", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic')),
           ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
@@ -268,8 +256,8 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
                         backgroundColor: _getStatusColor(status).withOpacity(0.2),
                         child: Icon(Icons.person, color: _getStatusColor(status), size: 18),
                       ),
-                      title: Text(data['adminName'] ?? "مدير", style: const TextStyle(fontSize: 14)),
-                      subtitle: Text(_getStatusText(status), style: TextStyle(fontSize: 11, color: _getStatusColor(status))),
+                      title: Text(data['adminName'] ?? "مدير", style: const TextStyle(fontSize: 14, fontFamily: 'IBMPlexSansArabic')),
+                      subtitle: Text(_getStatusText(status), style: TextStyle(fontSize: 11, color: _getStatusColor(status), fontFamily: 'IBMPlexSansArabic')),
                       trailing: isSelected 
                         ? IconButton(icon: const Icon(Icons.cancel, color: Colors.red), onPressed: () => _updateAdminSettings(_myStatus, null))
                         : IconButton(icon: const Icon(Icons.forward_to_inbox, color: Colors.blue), onPressed: () => _updateAdminSettings(_myStatus, docs[index].id)),
@@ -295,6 +283,4 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     if (status == "busy") return "مشغول حالياً";
     return "خارج العمل (غائب)";
   }
-
-  void _showError(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 }
