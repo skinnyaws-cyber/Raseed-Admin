@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart'; 
 import 'package:raseed_admin/tabs/orders_tab.dart';
 import 'package:raseed_admin/tabs/notifications_tab.dart';
 import 'package:raseed_admin/tabs/analytics_tab.dart';
 import 'package:raseed_admin/tabs/settings_tab.dart';
+import 'package:raseed_admin/screens/order_details_screen.dart'; // استيراد واجهة التفاصيل
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,13 +33,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   Future<void> _setupNotifications() async {
     FirebaseMessaging messaging = FirebaseMessaging.instance;
-
     NotificationSettings settings = await messaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
     );
-
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       String? token = await messaging.getToken();
       debugPrint("Device FCM Token: $token");
@@ -73,7 +73,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           icon: AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
             transitionBuilder: (child, anim) => RotationTransition(
-              // تم تعديل الزاوية لتبدأ من 0 وتنتهي عند 1 (دورة كاملة) للحفاظ على أفقية الخطوط
               turns: child.key == const ValueKey('icon1') 
                 ? Tween<double>(begin: 0, end: 1).animate(anim) 
                 : Tween<double>(begin: 1, end: 0).animate(anim),
@@ -100,9 +99,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           IconButton(
             icon: const Icon(Icons.search_rounded, color: Color(0xFF2F3542)),
             onPressed: () {
-              // تفعيل وظيفة البحث (فتح شريط البحث)
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("ميزة البحث ستتوفر في التحديث القادم")),
+              // تفعيل محرك البحث الفعلي 
+              showSearch(
+                context: context,
+                delegate: OrderSearchDelegate(),
               );
             },
           ),
@@ -124,8 +124,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               leading: const Icon(Icons.settings_suggest_rounded, color: Color(0xFFFF4757)),
               title: const Text("الإعدادات العامة", style: TextStyle(fontFamily: 'IBMPlexSansArabic')),
               onTap: () {
-                // إصلاح: التوجيه الفعلي لواجهة الإعدادات
-                Navigator.pop(context); // إغلاق القائمة أولاً
+                Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const SettingsTab()),
@@ -194,6 +193,85 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ],
         ),
       ),
+    );
+  }
+}
+
+// === محرك البحث الخاص بالطلبات ===
+class OrderSearchDelegate extends SearchDelegate {
+  @override
+  String get searchFieldLabel => "ابحث باسم المستخدم...";
+
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    return [
+      IconButton(
+        icon: const Icon(Icons.clear_rounded),
+        onPressed: () => query = "",
+      ),
+    ];
+  }
+
+  @override
+  Widget? buildLeading(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.arrow_back_ios_new_rounded),
+      onPressed: () => close(context, null),
+    );
+  }
+
+  @override
+  Widget buildResults(BuildContext context) {
+    return _buildSearchResults();
+  }
+
+  @override
+  Widget buildSuggestions(BuildContext context) {
+    if (query.isEmpty) {
+      return const Center(
+        child: Text("ابدأ بكتابة اسم العميل للبحث", style: TextStyle(fontFamily: 'IBMPlexSansArabic', color: Colors.grey)),
+      );
+    }
+    return _buildSearchResults();
+  }
+
+  Widget _buildSearchResults() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('orders')
+          .where('userFullName', isGreaterThanOrEqualTo: query)
+          .where('userFullName', isLessThanOrEqualTo: query + '\uf8ff')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        
+        var results = snapshot.data!.docs;
+
+        if (results.isEmpty) {
+          return const Center(child: Text("لا توجد نتائج مطابقة", style: TextStyle(fontFamily: 'IBMPlexSansArabic')));
+        }
+
+        return ListView.builder(
+          itemCount: results.length,
+          itemBuilder: (context, index) {
+            var orderData = results[index].data() as Map<String, dynamic>;
+            // إضافة معرف المستند للبيانات لضمان عمل دالة التأكيد [cite: 158]
+            orderData['id'] = results[index].id; 
+
+            return ListTile(
+              title: Text(orderData['userFullName'] ?? "بدون اسم", style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'IBMPlexSansArabic')),
+              subtitle: Text("${orderData['amount']} د.ع - ${orderData['status']}", style: const TextStyle(fontSize: 12)),
+              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => OrderDetailsScreen(order: orderData)),
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 }
