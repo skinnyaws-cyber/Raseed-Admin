@@ -3,10 +3,11 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart'; 
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // إضافة ضرورية
 import 'package:raseed_admin/screens/onboarding_screen.dart';
 import 'package:raseed_admin/screens/home_screen.dart';
 
-// === دالة المعالجة في الخلفية (Background Handler) ===
+// === دالة المعالجة في الخلفية (Background Handler) - لم تتغير ===
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
@@ -16,7 +17,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. تهيئة فايربيس (الإعدادات الرسمية لمشروع رصيد)
+  // 1. تهيئة فايربيس بالإعدادات الرسمية - لم تتغير
   await Firebase.initializeApp(
     options: const FirebaseOptions(
       apiKey: 'AIzaSyDNZxvs_hHmb2MWtcw4GLohNKRgPMeDCP4',
@@ -27,7 +28,17 @@ void main() async {
     ),
   );
 
-  // 2. ربط دالة الإشعارات في الخلفية
+  // 2. منطق تصفير الجلسة عند أول تثبيت (الحل البرمجي)
+  final prefs = await SharedPreferences.getInstance();
+  bool isFirstRun = prefs.getBool('is_first_run') ?? true;
+
+  if (isFirstRun) {
+    // تسجيل خروج إجباري لمسح مخلفات النظام السابقة
+    await FirebaseAuth.instance.signOut();
+    await prefs.setBool('is_first_run', false);
+  }
+
+  // 3. ربط دالة الإشعارات في الخلفية - لم تتغير
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   runApp(const MyApp());
@@ -63,18 +74,18 @@ class MyApp extends StatelessWidget {
         ),
       ),
       
-      // منطق التوجيه التلقائي: إذا وجد مستخدم مسجل يفتح HomeScreen، وإلا يفتح Onboarding
+      // منطق التوجيه التلقائي مع StreamBuilder - لم يتغير
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(body: Center(child: CircularProgressIndicator()));
           }
-          // إذا كان المستخدم مسجلاً دخول مسبقاً [cite: 136]
+          // إذا وجد مستخدم (ولم نكن في أول تشغيل) يفتح HomeScreen
           if (snapshot.hasData && snapshot.data != null) {
             return const HomeScreen();
           }
-          // إذا كان المستخدم جديداً أو سجل خروجه [cite: 137]
+          // غير ذلك يفتح OnboardingScreen كما تريد
           return const OnboardingScreen();
         },
       ),
