@@ -31,7 +31,6 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     _fetchAdminStatus();
   }
 
-  // جلب حالة المدير الحالي وإعدادات التحويل من Firestore [cite: 57-58]
   void _fetchAdminStatus() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
@@ -46,7 +45,6 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     }
   }
 
-  // جلب بيانات الميزانية ورأس المال [cite: 59-60]
   void _fetchFinancialData() {
     FirebaseFirestore.instance.collection('financials').doc('daily_capital').snapshots().listen((snapshot) {
       if (snapshot.exists && mounted) {
@@ -58,7 +56,6 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     });
   }
 
-  // تحديث الحالة والتحويل مباشرة (بدون بصمة) [cite: 60-61]
   Future<void> _updateAdminSettings(String status, String? forwardId) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
@@ -70,55 +67,69 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     }
   }
 
-  // تحديث رأس المال اليدوي [cite: 62-65]
+  // تحديث رأس المال وإغلاق لوحة المفاتيح تلقائياً
   Future<void> _setCapital() async {
     final amount = double.tryParse(_capitalController.text.replaceAll(',', ''));
     if (amount == null) return;
+    
+    // حل المشكلة الثالثة: إغلاق لوحة المفاتيح عند الضغط على تأكيد
+    FocusScope.of(context).unfocus();
+
     setState(() => _isLoadingCapital = true);
     await FirebaseFirestore.instance.collection('financials').doc('daily_capital').set({
       'current_amount': amount,
       'alert_threshold': _alertThreshold,
       'last_updated': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+    
     _capitalController.clear();
     if(mounted) setState(() => _isLoadingCapital = false);
   }
 
+  // وظيفة لحفظ قيمة التنبيه بشكل مستقل لضمان الاستمرارية
+  Future<void> _updateAlertThreshold(double value) async {
+    await FirebaseFirestore.instance.collection('financials').doc('daily_capital').set({
+      'alert_threshold': value,
+    }, SetOptions(merge: true));
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        centerTitle: true,
-        // إزالة أيقونة القائمة بناءً على طلبك [cite: 66-69]
-        title: const Text(
-          "الخزنة والعمليات",
-          style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF2F3542)),
+    // حل المشكلة الثالثة: GestureDetector لإغلاق الكيبورد عند الضغط على أي مكان في الشاشة
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF5F6FA),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0.5,
+          centerTitle: true,
+          title: const Text(
+            "الخزنة والعمليات",
+            style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF2F3542)),
+          ),
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildProfitSection(),
-            const SizedBox(height: 24),
-            _buildCapitalCard(),
-            const SizedBox(height: 24),
-            const Text("توزيع المهام وحالة النشاط", style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, color: Colors.grey)),
-            const SizedBox(height: 12),
-            _buildStatusSelector(), // اختيار الحالة
-            const SizedBox(height: 16),
-            _buildAdminsList(), // قائمة المدراء للتحويل
-          ],
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildProfitSection(),
+              const SizedBox(height: 24),
+              _buildCapitalCard(),
+              const SizedBox(height: 24),
+              const Text("توزيع المهام وحالة النشاط", style: TextStyle(fontFamily: 'IBMPlexSansArabic', fontWeight: FontWeight.bold, color: Colors.grey)),
+              const SizedBox(height: 12),
+              _buildStatusSelector(),
+              const SizedBox(height: 16),
+              _buildAdminsList(),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // حساب الأرباح الشاملة (عمولة النظام بالكامل) [cite: 72-85]
   Widget _buildProfitSection() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -168,7 +179,6 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     );
   }
 
-  // إدارة الميزانية مع خصم تلقائي وتنبيه [cite: 86-89]
   Widget _buildCapitalCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -189,7 +199,21 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
           Text("${_currencyFormatter.format(_currentCapital)} د.ع", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _currentCapital < _alertThreshold ? Colors.red : const Color(0xFF2F3542))),
           const Text("الميزانية الحالية المتوفرة", style: TextStyle(fontSize: 12, color: Colors.grey)),
           const SizedBox(height: 10),
-          Slider(value: _alertThreshold.clamp(0, 1000000), min: 0, max: 1000000, activeColor: const Color(0xFFFF4757), onChanged: (val) => setState(() => _alertThreshold = val)),
+          
+          // حل المشكلة الأولى والثانية: السلايدر بزيادة 1000 دينار وحفظ تلقائي عند الانتهاء
+          Slider(
+            value: _alertThreshold.clamp(0, 1000000),
+            min: 0,
+            max: 1000000,
+            divisions: 1000, // لجعل الزيادة بمقدار 1000 دينار (1,000,000 / 1000)
+            activeColor: const Color(0xFFFF4757),
+            onChanged: (val) {
+              setState(() => _alertThreshold = val);
+            },
+            onChangeEnd: (val) {
+              _updateAlertThreshold(val); // حفظ القيمة في Firestore لضمان بقائها عند العودة
+            },
+          ),
           Text("تنبيه عند الوصول لـ: ${_currencyFormatter.format(_alertThreshold)}", style: const TextStyle(fontSize: 10, color: Colors.grey)),
         ],
       ),
@@ -214,7 +238,7 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
   Widget _buildStatusBtn(String status, String label, Color color) {
     bool isMe = _myStatus == status;
     return GestureDetector(
-      onTap: () => _updateAdminSettings(status, _forwardToAdminId), // تحديث مباشر [cite: 92]
+      onTap: () => _updateAdminSettings(status, _forwardToAdminId),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(color: isMe ? color : Colors.transparent, borderRadius: BorderRadius.circular(10)),
@@ -223,7 +247,6 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
     );
   }
 
-  // قائمة المدراء والتحويل التفاعلية [cite: 94-98]
   Widget _buildAdminsList() {
     return Container(
       height: 350,

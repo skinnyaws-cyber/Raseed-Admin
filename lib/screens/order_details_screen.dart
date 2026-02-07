@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart' as intl;
-import 'package:flutter/services.dart'; // ضروري لعملية النسخ للحافظة
+import 'package:flutter/services.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
   final QueryDocumentSnapshot order;
@@ -17,7 +17,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   final Color _primaryColor = const Color(0xFFFF4757);
   final Color _textColor = const Color(0xFF2F3542);
 
-  // منطق التأكيد الأصلي (لم يتم تغييره)
   Future<void> _confirmOrder() async {
     if (widget.order['status'] == 'successful') return;
 
@@ -41,7 +40,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     );
 
     if (confirm != true) return;
-
     setState(() => _isLoading = true);
 
     try {
@@ -52,7 +50,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         'status': 'successful',
         'completed_at': FieldValue.serverTimestamp(),
       });
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -73,7 +70,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     }
   }
 
-  // وظيفة النسخ للحافظة
   void _copyToClipboard(String text) {
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -92,7 +88,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     final bool isPending = data['status'] == 'pending' || data['status'] == 'waiting_admin_confirmation';
     final String orderIdShort = widget.order.id.substring(0, 8).toUpperCase();
 
-    // تنسيق التاريخ
+    // حساب المبلغ المطلوب إرساله من قبل المدير (المبلغ الكلي - العمولة)
+    final double amount = (data['amount'] ?? 0).toDouble();
+    final double commission = (data['commission'] ?? 0).toDouble();
+    final double finalAmountToSend = amount - commission;
+
     String formattedDate = "غير متوفر";
     if (data['createdAt'] != null) {
       Timestamp timestamp = data['createdAt'];
@@ -114,7 +114,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // شريط الحالة العلوي
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -141,7 +140,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                 padding: const EdgeInsets.all(20.0),
                 child: Column(
                   children: [
-                    // بطاقة التفاصيل الرئيسية
                     Container(
                       padding: const EdgeInsets.all(25),
                       decoration: BoxDecoration(
@@ -155,14 +153,15 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                         children: [
                           _buildModernInfoRow(Icons.person_outline_rounded, "الاسم الكامل", data['userFullName'] ?? "غير معروف"),
                           const Divider(height: 30),
-                          _buildModernInfoRow(Icons.monetization_on_outlined, "القيمة المطلوبة", "${data['amount'] ?? 0} د.ع", isImportant: true),
+                          // تحديث المنطق الحسابي للمبلغ المطلوب إرساله 
+                          _buildModernInfoRow(Icons.account_balance_rounded, "المبلغ المطلوب إرساله", "${intl.NumberFormat('#,###').format(finalAmountToSend)} د.ع", isImportant: true),
                           const Divider(height: 30),
-                          // حقل البطاقة مع زر النسخ
                           _buildModernInfoRow(Icons.credit_card_rounded, "بطاقة الاستلام", data['receivingCard'] ?? "---", isCopyable: true),
                           const Divider(height: 30),
-                          _buildModernInfoRow(Icons.compare_arrows_rounded, "المزود / الطريقة", data['transferProvider'] ?? "---"),
+                          // استخدام المعرفات الصحيحة من قاعدة البيانات 
+                          _buildModernInfoRow(Icons.compare_arrows_rounded, "طريقة التحويل", data['transferType'] ?? "---"),
                           const Divider(height: 30),
-                          _buildModernInfoRow(Icons.phone_iphone_rounded, "رقم الهاتف", data['userPhoneNumber'] ?? "---"),
+                          _buildModernInfoRow(Icons.phone_iphone_rounded, "رقم الهاتف", data['userPhone'] ?? "---"),
                           const Divider(height: 30),
                           _buildModernInfoRow(Icons.calendar_today_rounded, "وقت الإنشاء", formattedDate),
                         ],
@@ -174,7 +173,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
               ),
             ),
 
-            // زر الإجراء السفلي
             if (isPending)
               Container(
                 padding: const EdgeInsets.all(20),
@@ -204,7 +202,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     );
   }
 
-  // ودجت بناء الصف الحديث
   Widget _buildModernInfoRow(IconData icon, String label, String value, {bool isImportant = false, bool isCopyable = false}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,

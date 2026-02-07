@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // إضافة استيراد Auth للتحقق من هوية المدير
 import 'package:raseed_admin/screens/order_details_screen.dart';
 import 'package:intl/intl.dart' as intl;
 
@@ -12,15 +13,18 @@ class OrdersTab extends StatefulWidget {
 
 class _OrdersTabState extends State<OrdersTab> {
   final Color _primaryColor = const Color(0xFFFF4757);
+  final String? _currentAdminUid = FirebaseAuth.instance.currentUser?.uid;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
       body: StreamBuilder<QuerySnapshot>(
-        // جلب الطلبات وترتيبها من الأحدث إلى الأقدم [cite: 158-160]
+        // تحديث الاستعلام: جلب الطلبات المخصصة لهذا المدير والتي تنتظر التأكيد المالي فقط 
         stream: FirebaseFirestore.instance
             .collection('orders')
+            .where('assignedTo', isEqualTo: _currentAdminUid) // عرض الطلبات المخصصة لك فقط
+            .where('status', isEqualTo: 'waiting_admin_confirmation') // استبعاد حالة pending تماماً
             .orderBy('createdAt', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
@@ -34,8 +38,17 @@ class _OrdersTabState extends State<OrdersTab> {
 
           if (snapshot.data!.docs.isEmpty) {
             return const Center(
-              child: Text("لا توجد طلبات حالياً", 
-                style: TextStyle(fontFamily: 'IBMPlexSansArabic', color: Colors.grey)),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.assignment_turned_in_rounded, size: 60, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text(
+                    "لا توجد طلبات بانتظار تأكيدك حالياً", 
+                    style: TextStyle(fontFamily: 'IBMPlexSansArabic', color: Colors.grey),
+                  ),
+                ],
+              ),
             );
           }
 
@@ -55,10 +68,8 @@ class _OrdersTabState extends State<OrdersTab> {
   }
 
   Widget _buildOrderCard(QueryDocumentSnapshot doc, Map<String, dynamic> data) {
-    String status = data['status'] ?? 'pending';
-    bool isPending = status == 'pending' || status == 'waiting_admin_confirmation';
+    // بما أننا قمنا بالفلترة في الاستعلام، فكل الطلبات هنا هي waiting_admin_confirmation [cite: 76]
     
-    // تنسيق الوقت [cite: 155-156]
     String timeStr = "";
     if (data['createdAt'] != null) {
       DateTime dt = (data['createdAt'] as Timestamp).toDate();
@@ -66,7 +77,6 @@ class _OrdersTabState extends State<OrdersTab> {
     }
 
     return Container(
-      // التصحيح: تم تغيير EdgeInsets.bottom إلى EdgeInsets.only(bottom: 12)
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -78,7 +88,6 @@ class _OrdersTabState extends State<OrdersTab> {
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         onTap: () {
-          // الحفاظ على التصحيح السابق: تمرير الـ doc (QueryDocumentSnapshot) [cite: 153-154]
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -89,12 +98,12 @@ class _OrdersTabState extends State<OrdersTab> {
         leading: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: isPending ? _primaryColor.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+            color: _primaryColor.withOpacity(0.1),
             shape: BoxShape.circle,
           ),
           child: Icon(
-            isPending ? Icons.hourglass_empty_rounded : Icons.check_circle_outline_rounded,
-            color: isPending ? _primaryColor : Colors.green,
+            Icons.account_balance_wallet_rounded, // أيقونة تدل على انتظار التحويل المالي
+            color: _primaryColor,
             size: 24,
           ),
         ),
